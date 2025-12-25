@@ -9,6 +9,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
       packages: write
 
@@ -19,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Enable Corepack
@@ -60,10 +61,10 @@ jobs:
         run: |
           # 使用 pnpm publish 会自动将 workspace:* 转换为精确版本号
           # --filter 按依赖顺序发布
+          # With npm trusted publishing (OIDC) configured on npmjs.com, no
+          # long-lived npm token is required for the publish step.
           pnpm --filter feishu-markdown publish --no-git-checks --access public
           pnpm --filter feishu-markdown-mcp publish --no-git-checks --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         run: |
