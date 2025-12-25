@@ -25,6 +25,7 @@ export class FeishuClient {
   private readonly retryTimes: number;
   private readonly retryDelay: number;
   private readonly http: AxiosInstance;
+  private readonly userAccessToken?: string;
 
   private accessToken: string | null = null;
   private tokenExpiresAt = 0;
@@ -36,6 +37,7 @@ export class FeishuClient {
     this.timeout = options.timeout ?? 30000;
     this.retryTimes = options.retryTimes ?? 3;
     this.retryDelay = options.retryDelay ?? 1000;
+    this.userAccessToken = options.userAccessToken;
 
     this.http = axios.create({
       baseURL: this.baseUrl,
@@ -44,6 +46,18 @@ export class FeishuClient {
         'Content-Type': 'application/json; charset=utf-8',
       },
     });
+  }
+
+  /**
+   * 获取访问令牌
+   * 如果配置了 userAccessToken，直接返回
+   * 否则获取 tenant_access_token
+   */
+  private async getAccessToken(): Promise<string> {
+    if (this.userAccessToken) {
+      return this.userAccessToken;
+    }
+    return this.getTenantAccessToken();
   }
 
   /**
@@ -87,7 +101,7 @@ export class FeishuClient {
     url: string,
     data?: unknown
   ): Promise<T> {
-    const token = await this.getTenantAccessToken();
+    const token = await this.getAccessToken();
 
     return retryWithBackoff(
       async () => {
@@ -204,7 +218,7 @@ export class FeishuClient {
     parentNode: string,
     size?: number
   ): Promise<string> {
-    const token = await this.getTenantAccessToken();
+    const token = await this.getAccessToken();
 
     // 使用 FormData 上传文件
     const FormData = (await import('form-data')).default;
@@ -308,6 +322,55 @@ export class FeishuClient {
         ...imageBlock.image,
         token: fileToken,
       },
+    };
+  }
+
+  /**
+   * 删除块
+   */
+  async deleteBlock(documentId: string, blockId: string): Promise<void> {
+    const response = await this.request<{ code: number; msg: string }>(
+      'DELETE',
+      `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}`
+    );
+
+    if (response.code !== 0) {
+      throw new APIError(`Failed to delete block: ${response.msg}`, {
+        feishuCode: response.code,
+      });
+    }
+  }
+
+  /**
+   * 获取子块列表
+   */
+  async listChildren(
+    documentId: string,
+    blockId: string,
+    pageToken?: string,
+    pageSize = 500
+  ): Promise<{ items: FeishuBlock[]; pageToken?: string; hasMore: boolean }> {
+    const response = await this.request<{
+      code: number;
+      msg: string;
+      data: { items: FeishuBlock[]; page_token?: string; has_more: boolean };
+    }>(
+      'GET',
+      `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}/children?page_size=${pageSize}${
+        pageToken ? `&page_token=${pageToken}` : ''
+      }`
+    );
+
+    if (response.code !== 0) {
+      throw new APIError(`Failed to list children: ${response.msg}`, {
+        feishuCode: response.code,
+      });
+    }
+
+    return {
+      items: response.data.items,
+      pageToken: response.data.page_token,
+      hasMore: response.data.has_more,
     };
   }
 

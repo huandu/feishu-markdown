@@ -35,6 +35,12 @@ export interface FeishuMarkdownOptions {
    * @default 1000
    */
   retryDelay?: number;
+
+  /**
+   * 用户访问令牌
+   * 如果提供，将优先使用此令牌而不是 tenant_access_token
+   */
+  userAccessToken?: string;
 }
 
 /**

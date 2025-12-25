@@ -1,0 +1,74 @@
+{
+  "name": "feishu-markdown",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Convert Markdown to Feishu/Lark documents",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src && tsc --noEmit",
+    "lint:fix": "eslint src tests --fix",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huandu/feishu-markdown.git"
+  },
+  "keywords": [
+    "feishu",
+    "lark",
+    "markdown",
+    "converter",
+    "document"
+  ],
+  "author": "Huan Du",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/huandu/feishu-markdown/issues"
+  },
+  "homepage": "https://github.com/huandu/feishu-markdown#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@mermaid-js/mermaid-cli": "^11.4.2",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.0",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.7.4",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "form-data": "^4.0.5",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-gfm": "^3.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "nanoid": "^5.0.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@10.26.2+sha512.0e308ff2005fc7410366f154f625f6631ab2b16b1d2e70238444dd6ae9d630a8482d92a451144debc492416896ed16f7b114a86ec68b8404b2443869e68ffda6"
+}

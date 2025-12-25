@@ -94,6 +94,92 @@ export class FeishuMarkdown {
   }
 
   /**
+   * 追加 Markdown 内容到文档末尾
+   */
+  async append(
+    documentId: string,
+    markdown: string,
+    options: ConvertOptions = {}
+  ): Promise<ConvertResult> {
+    const mergedOptions = { ...this.defaultOptions, ...options };
+
+    // 1. 解析 Markdown
+    const ast = parseMarkdown(markdown);
+
+    // 2. 转换为飞书块
+    const { blocks, rootChildrenIds, imageBuffers } =
+      await transformMarkdownToBlocks(ast, mergedOptions);
+
+    if (blocks.length === 0) {
+      return {
+        documentId,
+        url: this.client.getDocumentUrl(documentId),
+        revisionId: 0,
+      };
+    }
+
+    // 3. 处理图片
+    await this.processImages(documentId, blocks, imageBuffers, mergedOptions);
+
+    // 4. 批量创建块
+    const batchSize = mergedOptions.batchSize ?? 50;
+    let revisionId = 0;
+
+    // 按批次创建块
+    const batches = this.splitIntoBatches(blocks, rootChildrenIds, batchSize);
+
+    for (const batch of batches) {
+      const response = await this.client.createDescendantBlocks(
+        documentId,
+        documentId, // 父块为文档根节点
+        {
+          children_id: batch.childrenIds,
+          descendants: batch.descendants,
+        }
+      );
+      revisionId = response.data?.document_revision_id ?? revisionId;
+    }
+
+    // 5. 返回结果
+    return {
+      documentId,
+      url: this.client.getDocumentUrl(documentId),
+      revisionId,
+    };
+  }
+
+  /**
+   * 替换文档内容为 Markdown
+   */
+  async replace(
+    documentId: string,
+    markdown: string,
+    options: ConvertOptions = {}
+  ): Promise<ConvertResult> {
+    // 1. 删除所有子块
+    let pageToken: string | undefined;
+    let hasMore = true;
+    while (hasMore) {
+      const result = await this.client.listChildren(
+        documentId,
+        documentId,
+        pageToken
+      );
+      pageToken = result.pageToken;
+      hasMore = result.hasMore;
+
+      for (const item of result.items) {
+        if (item.block_id) {
+          await this.client.deleteBlock(documentId, item.block_id);
+        }
+      }
+    }
+
+    // 2. 追加新内容
+    return this.append(documentId, markdown, options);
+  }
+
+  /**
    * 仅解析 Markdown 并返回飞书块结构（不上传）
    */
   async parse(
