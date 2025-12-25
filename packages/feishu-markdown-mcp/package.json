@@ -4,6 +4,11 @@
   "type": "module",
   "description": "MCP server for Feishu Markdown",
   "license": "MIT",
+  "author": "Huan Du",
+  "bugs": {
+    "url": "https://github.com/huandu/feishu-markdown/issues"
+  },
+  "homepage": "https://github.com/huandu/feishu-markdown#readme",
   "main": "dist/index.js",
   "bin": "bin/feishu-markdown-mcp",
   "scripts": {
@@ -28,8 +33,24 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huandu/feishu-markdown.git"
+  },
   "files": [
     "dist",
     "bin"
-  ]
+  ],
+  "keywords": [
+    "feishu",
+    "lark",
+    "markdown",
+    "converter",
+    "document",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@10.26.2+sha512.0e308ff2005fc7410366f154f625f6631ab2b16b1d2e70238444dd6ae9d630a8482d92a451144debc492416896ed16f7b114a86ec68b8404b2443869e68ffda6"
 }
