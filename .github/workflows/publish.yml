@@ -25,13 +25,6 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Ensure npm CLI supports trusted publishing (OIDC)
-        run: |
-          # npm trusted publishing requires npm CLI v11.5.1+
-          npm --version || true
-          npm install -g npm@^11.5.1
-          npm --version
-
       - name: Extract version from tag
         id: version
         run: |
@@ -63,18 +56,12 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
-      - name: Publish all packages (use npm to leverage OIDC)
+      - name: Publish all packages
         run: |
-          # 使用 npm publish 来触发 npm CLI 的 OIDC 流程（pnpm publish 在部分场景下可能不会触发）
-          # Publish feishu-markdown
-          cd packages/feishu-markdown
-          npm publish --access public
-          cd ../..
-
-          # Publish feishu-markdown-mcp
-          cd packages/feishu-markdown-mcp
-          npm publish --access public
-          cd ../..
+          # 使用 pnpm publish 会自动将 workspace:* 转换为精确版本号
+          # --filter 按依赖顺序发布
+          pnpm --filter feishu-markdown publish --no-git-checks --access public
+          pnpm --filter feishu-markdown-mcp publish --no-git-checks --access public
 
       - name: Summary
         run: |
