@@ -1,0 +1,76 @@
+name: Publish Packages to NPM Registry
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # 匹配 v1.2.3 格式的 tag
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # 从 tag 中提取版本号（去掉 v 前缀）
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Publishing version: $VERSION"
+
+      - name: Update package versions
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # 只更新各包的版本号，不修改依赖
+          # pnpm publish 会自动将 workspace:* 转换为实际版本号
+          cd packages/feishu-markdown
+          npm pkg set version="$VERSION"
+          cd ../..
+
+          cd packages/feishu-markdown-mcp
+          npm pkg set version="$VERSION"
+          cd ../..
+
+          echo "✅ All package versions updated to $VERSION"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Publish all packages
+        run: |
+          # 使用 pnpm publish 会自动将 workspace:* 转换为精确版本号
+          # --filter 按依赖顺序发布
+          pnpm --filter feishu-markdown publish --no-git-checks --access public
+          pnpm --filter feishu-markdown-mcp publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "## 🎉 Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Version |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| feishu-markdown | $VERSION |" >> $GITHUB_STEP_SUMMARY
+          echo "| feishu-markdown-mcp | $VERSION |" >> $GITHUB_STEP_SUMMARY
