@@ -1,6 +1,7 @@
 {
   "name": "feishu-markdown-monorepo",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "lint": "pnpm -r lint",
     "build": "pnpm -r build",

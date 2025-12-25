@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "description": "MCP server for Feishu Markdown",
+  "license": "MIT",
   "main": "dist/index.js",
   "bin": "bin/feishu-markdown-mcp",
   "scripts": {
