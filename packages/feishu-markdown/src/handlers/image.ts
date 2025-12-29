@@ -7,10 +7,34 @@ import { UploadError } from '@/errors';
 /**
  * 图片来源类型
  */
-export type ImageSource =
-  | { type: 'url'; url: string }
-  | { type: 'path'; path: string }
-  | { type: 'buffer'; buffer: Buffer; fileName: string };
+export interface UrlImageSource {
+  type: 'url';
+  url: string;
+}
+
+export interface PathImageSource {
+  type: 'path';
+  path: string;
+}
+
+export interface BufferImageSource {
+  type: 'buffer';
+  buffer: Buffer;
+  fileName: string;
+}
+
+export type ImageSource = UrlImageSource | PathImageSource | BufferImageSource;
+
+export interface ImageReference {
+  source: ImageSource;
+  // optional suggested file name
+  fileName?: string;
+}
+
+export interface PreparedImage {
+  buffer: Buffer;
+  fileName: string;
+}
 
 /**
  * 解析图片来源
@@ -51,10 +75,10 @@ export function parseImageSource(src: string, baseDir?: string): ImageSource {
 export async function loadImage(
   source: ImageSource,
   downloadEnabled = true
-): Promise<{ buffer: Buffer; fileName: string }> {
+): Promise<PreparedImage> {
   switch (source.type) {
     case 'buffer':
-      return source;
+      return { buffer: source.buffer, fileName: source.fileName };
 
     case 'path':
       try {

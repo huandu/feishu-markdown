@@ -55,12 +55,14 @@ export class UploadError extends FeishuMarkdownError {
 export class APIError extends FeishuMarkdownError {
   statusCode?: number;
   feishuCode?: number;
+  headers?: Record<string, unknown>;
 
   constructor(
     message: string,
     options?: {
       statusCode?: number;
       feishuCode?: number;
+      headers?: Record<string, unknown>;
       cause?: Error;
     }
   ) {
@@ -68,6 +70,7 @@ export class APIError extends FeishuMarkdownError {
     this.name = 'APIError';
     this.statusCode = options?.statusCode;
     this.feishuCode = options?.feishuCode;
+    this.headers = options?.headers;
   }
 
   /**

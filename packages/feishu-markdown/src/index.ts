@@ -1,6 +1,11 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { FeishuClient } from './client/index';
 import { ConfigError, TransformError } from './errors';
-import { loadImage, parseImageSource } from './handlers/index';
+import type { ImageReference, PreparedImage } from './handlers/index';
+import { loadImage } from './handlers/index';
 import { parseMarkdown } from './parser/index';
 import { transformMarkdownToBlocks } from './transformer/index';
 import type { DescendantBlock } from './types/feishu';
@@ -33,64 +38,119 @@ export class FeishuMarkdown {
     markdown: string,
     options: ConvertOptions = {}
   ): Promise<ConvertResult> {
-    const mergedOptions = { ...this.defaultOptions, ...options };
-
-    // 1. 解析 Markdown
-    const ast = parseMarkdown(markdown);
-
-    // 2. 转换为飞书块
-    const { blocks, rootChildrenIds, imageBuffers } =
-      await transformMarkdownToBlocks(ast, mergedOptions);
-
-    if (blocks.length === 0) {
-      throw new TransformError('No content to convert');
-    }
-
-    // 3. 创建文档
-    const createDocRequest: { folder_token?: string; title?: string } = {};
-    if (mergedOptions.folderToken) {
-      createDocRequest.folder_token = mergedOptions.folderToken;
-    }
-    if (mergedOptions.title) {
-      createDocRequest.title = mergedOptions.title;
-    }
-    const createResponse = await this.client.createDocument(createDocRequest);
-
-    const documentId = createResponse.data?.document.document_id;
-    if (!documentId) {
-      throw new TransformError(
-        'Failed to create document: no document_id returned'
-      );
-    }
-
-    // 4. 处理图片
-    await this.processImages(documentId, blocks, imageBuffers, mergedOptions);
-
-    // 5. 批量创建块
-    const batchSize = mergedOptions.batchSize ?? 50;
-    let revisionId = createResponse.data?.document.revision_id ?? 1;
-
-    // 按批次创建块
-    const batches = this.splitIntoBatches(blocks, rootChildrenIds, batchSize);
-
-    for (const batch of batches) {
-      const response = await this.client.createDescendantBlocks(
-        documentId,
-        documentId, // 父块为文档根节点
-        {
-          children_id: batch.childrenIds,
-          descendants: batch.descendants,
-        }
-      );
-      revisionId = response.data?.document_revision_id ?? revisionId;
-    }
-
-    // 6. 返回结果
-    return {
-      documentId,
-      url: this.client.getDocumentUrl(documentId),
-      revisionId,
+    const mergedOptions: ConvertOptions = {
+      ...this.defaultOptions,
+      ...options,
+      mermaid: {
+        ...this.defaultOptions.mermaid,
+        ...options.mermaid,
+      },
     };
+
+    let tempDirCreated = false;
+    if (!mergedOptions.mermaidTempDir) {
+      mergedOptions.mermaidTempDir = await mkdtemp(
+        join(tmpdir(), 'feishu-markdown-')
+      );
+      tempDirCreated = true;
+    }
+
+    try {
+      // 1. 解析 Markdown
+      const ast = parseMarkdown(markdown);
+
+      // 2. 转换为飞书块
+      const { blocks, rootChildrenIds, imageBuffers } =
+        await transformMarkdownToBlocks(ast, mergedOptions);
+
+      if (blocks.length === 0) {
+        throw new TransformError('No content to convert');
+      }
+
+      // 3. 创建文档
+      const createDocRequest: { folder_token?: string; title?: string } = {};
+      if (mergedOptions.folderToken) {
+        createDocRequest.folder_token = mergedOptions.folderToken;
+      }
+      if (mergedOptions.title) {
+        createDocRequest.title = mergedOptions.title;
+      }
+      const createResponse = await this.client.createDocument(createDocRequest);
+
+      const documentId = createResponse.data?.document.document_id;
+      if (!documentId) {
+        throw new TransformError(
+          'Failed to create document: no document_id returned'
+        );
+      }
+
+      // 4. 处理图片
+      await this.processImages(documentId, blocks, imageBuffers, mergedOptions);
+
+      // 5. 批量创建块
+      const batchSize = mergedOptions.batchSize ?? 50;
+      let revisionId = createResponse.data?.document.revision_id ?? 1;
+
+      // 按批次创建块
+      const batches = this.splitIntoBatches(blocks, rootChildrenIds, batchSize);
+
+      for (const batch of batches) {
+        const response = await this.client.createDescendantBlocks(
+          documentId,
+          documentId, // 父块为文档根节点
+          {
+            children_id: batch.childrenIds,
+            descendants: batch.descendants,
+          }
+        );
+        revisionId = response.data?.document_revision_id ?? revisionId;
+        // 上传本批次中所有图片块的媒体并更新块的 image token
+        for (const block of batch.descendants) {
+          if (block.block_type !== 27) continue;
+          const prepared = imageBuffers.get(block.block_id);
+          if (prepared?.source.type !== 'buffer') continue;
+
+          try {
+            const buf = prepared.source.buffer;
+            const fileName =
+              prepared.source.fileName ?? prepared.fileName ?? 'image.png';
+            const fileToken = await this.client.uploadMedia(
+              buf,
+              fileName,
+              'docx_image',
+              block.block_id,
+              buf.length
+            );
+            await this.client.updateBlock(documentId, block.block_id, {
+              replace_image: { token: fileToken },
+            });
+          } catch (err) {
+            console.warn(
+              `Failed to upload image for block ${block.block_id}:`,
+              err
+            );
+          }
+        }
+      }
+
+      // 6. 返回结果
+      return {
+        documentId,
+        url: this.client.getDocumentUrl(documentId),
+        revisionId,
+      };
+    } finally {
+      if (tempDirCreated && mergedOptions.mermaidTempDir) {
+        try {
+          await rm(mergedOptions.mermaidTempDir, {
+            recursive: true,
+            force: true,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
   }
 
   /**
@@ -138,6 +198,33 @@ export class FeishuMarkdown {
         }
       );
       revisionId = response.data?.document_revision_id ?? revisionId;
+      // 上传本批次中所有图片块
+      for (const block of batch.descendants) {
+        if (block.block_type !== 27) continue;
+        const prepared = imageBuffers.get(block.block_id);
+        if (prepared?.source.type !== 'buffer') continue;
+
+        try {
+          const buf = prepared.source.buffer;
+          const fileName =
+            prepared.source.fileName ?? prepared.fileName ?? 'image.png';
+          const fileToken = await this.client.uploadMedia(
+            buf,
+            fileName,
+            'docx_image',
+            block.block_id,
+            buf.length
+          );
+          await this.client.updateBlock(documentId, block.block_id, {
+            replace_image: { token: fileToken },
+          });
+        } catch (err) {
+          console.warn(
+            `Failed to upload image for block ${block.block_id}:`,
+            err
+          );
+        }
+      }
     }
 
     // 5. 返回结果
@@ -203,7 +290,7 @@ export class FeishuMarkdown {
   private async processImages(
     _documentId: string,
     blocks: DescendantBlock[],
-    imageBuffers: Map<string, { buffer: Buffer; fileName: string }>,
+    imageBuffers: Map<string, ImageReference>,
     options: ConvertOptions
   ): Promise<void> {
     for (const [blockId, data] of imageBuffers) {
@@ -211,34 +298,31 @@ export class FeishuMarkdown {
       if (block?.block_type !== 27) continue;
 
       try {
-        let imageData: { buffer: Buffer; fileName: string };
+        let imageData: PreparedImage;
 
-        // 检查是否是 URL（暂存的）
-        const storedData = data.buffer.toString();
-        if (
-          storedData.startsWith('http://') ||
-          storedData.startsWith('https://') ||
-          storedData.startsWith('data:') ||
-          !storedData.includes('\0')
-        ) {
-          // 这是一个 URL，需要加载
-          const source = parseImageSource(storedData, options.imageBaseDir);
-          const downloadEnabled = options.downloadImages !== false;
-          imageData = await loadImage(source, downloadEnabled);
+        const downloadEnabled = options.downloadImages !== false;
+
+        if (data.source.type === 'buffer') {
+          imageData = {
+            buffer: data.source.buffer,
+            fileName: data.source.fileName ?? data.fileName ?? 'image.png',
+          };
         } else {
-          // 已经是图片数据（如 Mermaid 生成的）
-          imageData = data;
+          // url or path — load via handler
+          imageData = await loadImage(data.source, downloadEnabled);
         }
 
-        // 创建图片块并上传
-        // 注意：实际的图片创建需要先创建空图片块，再上传，再更新
-        // 这里简化处理，实际在批量创建时处理
-
-        // 标记图片数据已准备好
-        imageBuffers.set(blockId, imageData);
+        // 将 imageBuffers 中的条目置为已准备好的二进制数据
+        imageBuffers.set(blockId, {
+          source: {
+            type: 'buffer',
+            buffer: imageData.buffer,
+            fileName: imageData.fileName,
+          },
+          fileName: imageData.fileName,
+        });
       } catch (error) {
         console.warn(`Failed to process image for block ${blockId}:`, error);
-        // 移除失败的图片块
         imageBuffers.delete(blockId);
       }
     }
@@ -256,7 +340,7 @@ export class FeishuMarkdown {
     // 这里简化处理，一次性发送所有块
     // 实际生产中可能需要更复杂的分批逻辑
 
-    if (blocks.length <= batchSize * 20) {
+    if (blocks.length <= batchSize) {
       // 如果总块数较少，一次性发送
       return [
         {
@@ -300,10 +384,7 @@ export class FeishuMarkdown {
     for (const rootId of rootChildrenIds) {
       const descendants = collectDescendants(rootId);
 
-      if (
-        currentBatch.descendants.length + descendants.length >
-        batchSize * 20
-      ) {
+      if (currentBatch.descendants.length + descendants.length > batchSize) {
         if (currentBatch.childrenIds.length > 0) {
           batches.push(currentBatch);
         }
@@ -326,11 +407,11 @@ export class FeishuMarkdown {
 }
 
 // 导出所有类型和工具
-export * from './types/index';
+export * from './builders/index';
+export { FeishuClient } from './client/index';
 export * from './errors';
+export * from './handlers/index';
 export { parseMarkdown } from './parser/index';
 export { transformMarkdownToBlocks } from './transformer/index';
-export { FeishuClient } from './client/index';
-export * from './builders/index';
+export * from './types/index';
 export * from './utils/index';
-export * from './handlers/index';

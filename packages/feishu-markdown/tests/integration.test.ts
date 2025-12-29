@@ -7,8 +7,8 @@ import {
   ParseError,
   TransformError,
   UploadError,
-} from '@/src/errors';
-import { FeishuMarkdown } from '@/src/index';
+} from '@/errors';
+import { FeishuMarkdown } from '@/index';
 
 describe('FeishuMarkdown', () => {
   describe('constructor', () => {

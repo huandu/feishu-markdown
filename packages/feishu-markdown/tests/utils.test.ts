@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { CodeLanguage } from '@/src/types/feishu';
-import { generateBlockId } from '@/src/utils/id';
-import { isMermaidLanguage, mapCodeLanguage } from '@/src/utils/language';
-import { delay, retryWithBackoff } from '@/src/utils/retry';
+import { CodeLanguage } from '@/types/feishu';
+import { generateBlockId } from '@/utils/id';
+import { isMermaidLanguage, mapCodeLanguage } from '@/utils/language';
+import { delay, retryWithBackoff } from '@/utils/retry';
 
 describe('Utils', () => {
   describe('generateBlockId', () => {

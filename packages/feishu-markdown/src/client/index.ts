@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { AxiosError, AxiosInstance } from 'axios';
+import FormData from 'form-data';
 
 import { APIError } from '@/errors';
 import type {
@@ -69,13 +70,19 @@ export class FeishuClient {
       return this.accessToken;
     }
 
-    const response = await this.http.post<TenantAccessTokenResponse>(
-      '/open-apis/auth/v3/tenant_access_token/internal',
-      {
-        app_id: this.appId,
-        app_secret: this.appSecret,
+    const response = await retryWithBackoff(async () => {
+      try {
+        return await this.http.post<TenantAccessTokenResponse>(
+          '/open-apis/auth/v3/tenant_access_token/internal',
+          {
+            app_id: this.appId,
+            app_secret: this.appSecret,
+          }
+        );
+      } catch (error) {
+        this.handleAxiosError(error);
       }
-    );
+    }, this.getRetryOptions());
 
     if (response.data.code !== 0 || !response.data.tenant_access_token) {
       throw new APIError(
@@ -94,6 +101,56 @@ export class FeishuClient {
   }
 
   /**
+   * 处理 Axios 错误
+   */
+  private handleAxiosError(error: unknown): never {
+    const axiosError = error as AxiosError<{ code: number; msg: string }>;
+    if (axiosError.response) {
+      throw new APIError(axiosError.response.data?.msg ?? axiosError.message, {
+        statusCode: axiosError.response.status,
+        feishuCode: axiosError.response.data?.code,
+        headers: axiosError.response.headers,
+      });
+    }
+    throw error;
+  }
+
+  /**
+   * 获取重试配置
+   */
+  private getRetryOptions() {
+    return {
+      retries: this.retryTimes,
+      baseDelay: this.retryDelay,
+      shouldRetry: (error: unknown) => {
+        if (error instanceof APIError) {
+          return error.isRateLimitError();
+        }
+        return false;
+      },
+      calculateDelay: (error: unknown, attempt: number) => {
+        if (
+          error instanceof APIError &&
+          error.isRateLimitError() &&
+          error.headers
+        ) {
+          const reset = error.headers['x-ogw-ratelimit-reset'] as string;
+          if (reset) {
+            const resetSeconds = parseInt(reset, 10);
+            if (!isNaN(resetSeconds)) {
+              return resetSeconds * 1000;
+            }
+          }
+        }
+
+        // 默认指数退避策略
+        const delayMs = Math.min(this.retryDelay * Math.pow(2, attempt), 30000);
+        return delayMs * (0.75 + Math.random() * 0.5);
+      },
+    };
+  }
+
+  /**
    * 发送带认证的请求
    */
   private async request<T>(
@@ -103,43 +160,21 @@ export class FeishuClient {
   ): Promise<T> {
     const token = await this.getAccessToken();
 
-    return retryWithBackoff(
-      async () => {
-        try {
-          const response = await this.http.request<T>({
-            method,
-            url,
-            data,
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          return response.data;
-        } catch (error) {
-          const axiosError = error as AxiosError<{ code: number; msg: string }>;
-          if (axiosError.response) {
-            throw new APIError(
-              axiosError.response.data?.msg ?? axiosError.message,
-              {
-                statusCode: axiosError.response.status,
-                feishuCode: axiosError.response.data?.code,
-              }
-            );
-          }
-          throw error;
-        }
-      },
-      {
-        retries: this.retryTimes,
-        baseDelay: this.retryDelay,
-        shouldRetry: (error) => {
-          if (error instanceof APIError) {
-            return error.isRateLimitError();
-          }
-          return false;
-        },
+    return retryWithBackoff(async () => {
+      try {
+        const response = await this.http.request<T>({
+          method,
+          url,
+          data,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        return response.data;
+      } catch (error) {
+        this.handleAxiosError(error);
       }
-    );
+    }, this.getRetryOptions());
   }
 
   /**
@@ -221,7 +256,6 @@ export class FeishuClient {
     const token = await this.getAccessToken();
 
     // 使用 FormData 上传文件
-    const FormData = (await import('form-data')).default;
     const formData = new FormData();
     formData.append('file', file, fileName);
     formData.append('file_name', fileName);
@@ -229,8 +263,8 @@ export class FeishuClient {
     formData.append('parent_node', parentNode);
     formData.append('size', String(size ?? file.length));
 
-    const response = await retryWithBackoff(
-      async () => {
+    const response = await retryWithBackoff(async () => {
+      try {
         const result = await this.http.post<{
           code: number;
           msg: string;
@@ -244,12 +278,10 @@ export class FeishuClient {
           maxBodyLength: Infinity,
         });
         return result.data;
-      },
-      {
-        retries: this.retryTimes,
-        baseDelay: this.retryDelay,
+      } catch (error) {
+        this.handleAxiosError(error);
       }
-    );
+    }, this.getRetryOptions());
 
     if (response.code !== 0 || !response.data?.file_token) {
       throw new APIError(`Failed to upload media: ${response.msg}`, {

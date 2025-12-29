@@ -46,7 +46,6 @@
   "homepage": "https://github.com/huandu/feishu-markdown#readme",
   "devDependencies": {
     "@eslint/js": "^9.17.0",
-    "@mermaid-js/mermaid-cli": "^11.4.2",
     "@trivago/prettier-plugin-sort-imports": "^6.0.0",
     "@types/mdast": "^4.0.4",
     "@types/node": "^22.10.2",
@@ -60,6 +59,7 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
+    "@mermaid-js/mermaid-cli": "^11.4.2",
     "axios": "^1.7.9",
     "form-data": "^4.0.5",
     "mdast-util-from-markdown": "^2.0.2",

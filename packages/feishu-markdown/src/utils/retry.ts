@@ -15,6 +15,7 @@ export async function retryWithBackoff<T>(
     baseDelay?: number;
     maxDelay?: number;
     shouldRetry?: (error: unknown) => boolean;
+    calculateDelay?: (error: unknown, attempt: number) => number;
   } = {}
 ): Promise<T> {
   const {
@@ -22,6 +23,7 @@ export async function retryWithBackoff<T>(
     baseDelay = 1000,
     maxDelay = 10000,
     shouldRetry = () => true,
+    calculateDelay,
   } = options;
 
   let lastError: unknown;
@@ -36,11 +38,18 @@ export async function retryWithBackoff<T>(
         throw error;
       }
 
-      // 计算指数退避延迟
-      const delayMs = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-      // 添加抖动（±25%）
-      const jitter = delayMs * (0.75 + Math.random() * 0.5);
-      await delay(jitter);
+      let delayMs: number;
+      if (calculateDelay) {
+        delayMs = calculateDelay(error, attempt);
+      } else {
+        // 计算指数退避延迟
+        delayMs = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+        // 添加抖动（±25%）
+        const jitter = delayMs * (0.75 + Math.random() * 0.5);
+        delayMs = jitter;
+      }
+
+      await delay(delayMs);
     }
   }
 

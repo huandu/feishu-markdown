@@ -27,6 +27,8 @@ import {
   createTextElement,
   createTodoBlock,
 } from '@/builders/index';
+import { parseImageSource } from '@/handlers/index';
+import type { ImageReference } from '@/handlers/index';
 import { renderMermaid } from '@/handlers/mermaid';
 import type {
   DescendantBlock,
@@ -48,7 +50,13 @@ interface TransformContext {
   options: ConvertOptions;
   blocks: DescendantBlock[];
   rootChildrenIds: string[];
-  imageBuffers: Map<string, { buffer: Buffer; fileName: string }>;
+  imageBuffers: Map<string, ImageReference>;
+}
+
+export interface TransformResult {
+  blocks: DescendantBlock[];
+  rootChildrenIds: string[];
+  imageBuffers: Map<string, ImageReference>;
 }
 
 /**
@@ -69,11 +77,7 @@ interface StyleContext {
 export async function transformMarkdownToBlocks(
   ast: Root,
   options: ConvertOptions = {}
-): Promise<{
-  blocks: DescendantBlock[];
-  rootChildrenIds: string[];
-  imageBuffers: Map<string, { buffer: Buffer; fileName: string }>;
-}> {
+): Promise<TransformResult> {
   const context: TransformContext = {
     options,
     blocks: [],
@@ -346,6 +350,7 @@ async function handleMermaidCode(
     theme: 'default',
     backgroundColor: 'white',
     ...context.options.mermaid,
+    tempDir: context.options.mermaidTempDir,
   };
 
   try {
@@ -358,8 +363,11 @@ async function handleMermaidCode(
     const block = createImageBlock(undefined, undefined, undefined, blockId);
     addBlock(block, context, parentBlockId);
 
-    // 保存图片缓冲区供后续上传
-    context.imageBuffers.set(blockId, { buffer, fileName });
+    // 保存图片缓冲区供后续上传 — 存为 buffer 源
+    context.imageBuffers.set(blockId, {
+      source: { type: 'buffer', buffer, fileName },
+      fileName,
+    });
   } catch (error) {
     // 如果 Mermaid 渲染失败，回退到普通代码块
     console.warn(
@@ -413,70 +421,83 @@ async function handleTable(
   parentBlockId: string | null
 ): Promise<void> {
   const tableNode = node as Table;
-  const rows = tableNode.children;
+  const allRows = tableNode.children;
 
-  if (rows.length === 0) {
+  if (allRows.length === 0) {
     return;
   }
 
-  const rowSize = rows.length;
-  const columnSize = rows[0]?.children.length ?? 0;
+  const columnSize = allRows[0]?.children.length ?? 0;
 
   if (columnSize === 0) {
     return;
   }
 
-  // 为每个单元格创建块
-  const cellBlockIds: string[] = [];
-  const cellBlocks: DescendantBlock[] = [];
-  const cellContentBlocks: DescendantBlock[] = [];
+  // Split table into chunks to avoid exceeding API limits
+  // Feishu API has a limit on the number of blocks in a single request.
+  // A table with many cells can easily exceed this limit because each cell is a block,
+  // and the table + all cells must be created in the same batch.
+  // We use a conservative limit of 20 cells per table chunk.
+  const MAX_CELLS_PER_TABLE = 20;
+  const maxRows = Math.floor(MAX_CELLS_PER_TABLE / columnSize);
+  const chunkSize = Math.max(maxRows, 1);
 
-  for (const row of rows) {
-    const tableRow = row;
-    for (const cell of tableRow.children) {
-      const tableCell = cell;
-      const cellBlockId = generateBlockId();
-      cellBlockIds.push(cellBlockId);
+  for (let i = 0; i < allRows.length; i += chunkSize) {
+    const rows = allRows.slice(i, i + chunkSize);
+    const rowSize = rows.length;
 
-      // 创建单元格块
-      const cellBlock = createTableCellBlock(cellBlockId);
+    // 为每个单元格创建块
+    const cellBlockIds: string[] = [];
+    const cellBlocks: DescendantBlock[] = [];
+    const cellContentBlocks: DescendantBlock[] = [];
 
-      // 提取单元格内容
-      const elements = extractTextElements(tableCell.children);
-      const contentBlockId = generateBlockId();
-      const contentBlock: DescendantBlock = {
-        ...createTextBlock(elements, contentBlockId),
-        block_id: contentBlockId,
-        children: [],
-      };
+    for (const row of rows) {
+      const tableRow = row;
+      for (const cell of tableRow.children) {
+        const tableCell = cell;
+        const cellBlockId = generateBlockId();
+        cellBlockIds.push(cellBlockId);
 
-      // 设置单元格的子块
-      (cellBlock as DescendantBlock).block_id = cellBlockId;
-      (cellBlock as DescendantBlock).children = [contentBlockId];
+        // 创建单元格块
+        const cellBlock = createTableCellBlock(cellBlockId);
 
-      cellBlocks.push(cellBlock as DescendantBlock);
-      cellContentBlocks.push(contentBlock);
+        // 提取单元格内容
+        const elements = extractTextElements(tableCell.children);
+        const contentBlockId = generateBlockId();
+        const contentBlock: DescendantBlock = {
+          ...createTextBlock(elements, contentBlockId),
+          block_id: contentBlockId,
+          children: [],
+        };
+
+        // 设置单元格的子块
+        (cellBlock as DescendantBlock).block_id = cellBlockId;
+        (cellBlock as DescendantBlock).children = [contentBlockId];
+
+        cellBlocks.push(cellBlock as DescendantBlock);
+        cellContentBlocks.push(contentBlock);
+      }
     }
-  }
 
-  // 创建表格块
-  const tableBlockId = generateBlockId();
-  const tableBlock = createTableBlock(
-    rowSize,
-    columnSize,
-    cellBlockIds,
-    tableBlockId
-  );
+    // 创建表格块
+    const tableBlockId = generateBlockId();
+    const tableBlock = createTableBlock(
+      rowSize,
+      columnSize,
+      cellBlockIds,
+      tableBlockId
+    );
 
-  // 添加表格块
-  addBlock(tableBlock, context, parentBlockId);
+    // 添加表格块
+    addBlock(tableBlock, context, parentBlockId);
 
-  // 添加单元格块和内容块
-  for (const cellBlock of cellBlocks) {
-    context.blocks.push(cellBlock);
-  }
-  for (const contentBlock of cellContentBlocks) {
-    context.blocks.push(contentBlock);
+    // 添加单元格块和内容块
+    for (const cellBlock of cellBlocks) {
+      context.blocks.push(cellBlock);
+    }
+    for (const contentBlock of cellContentBlocks) {
+      context.blocks.push(contentBlock);
+    }
   }
 }
 
@@ -498,9 +519,10 @@ async function handleImage(
   const imageUrl = imageNode.url;
   const fileName = imageNode.alt ?? imageUrl.split('/').pop() ?? 'image.png';
 
-  // 这里先标记图片，实际加载在后续步骤中进行
+  // 这里先标记图片来源（URL 或本地路径），实际加载在后续步骤中进行
+  const source = parseImageSource(imageUrl, context.options.imageBaseDir);
   context.imageBuffers.set(blockId, {
-    buffer: Buffer.from(imageUrl), // 暂存 URL
+    source,
     fileName,
   });
 }

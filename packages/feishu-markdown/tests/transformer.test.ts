@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseMarkdown } from '@/src/parser/index';
-import { transformMarkdownToBlocks } from '@/src/transformer/index';
-import { BlockType, CodeLanguage } from '@/src/types/feishu';
+import { parseMarkdown } from '@/parser/index';
+import { transformMarkdownToBlocks } from '@/transformer/index';
+import { BlockType, CodeLanguage } from '@/types/feishu';
 
 describe('transformMarkdownToBlocks', () => {
   it('should transform simple paragraph', async () => {
@@ -14,7 +14,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Text
     );
     expect(textBlock).toBeDefined();
-    expect(textBlock?.text?.elements[0]?.text_run?.content).toBe(
+    expect(textBlock?.text?.elements?.[0]?.text_run?.content).toBe(
       'Hello, world!'
     );
   });
@@ -27,7 +27,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Heading1
     );
     expect(headingBlock).toBeDefined();
-    expect(headingBlock?.heading1?.elements[0]?.text_run?.content).toBe(
+    expect(headingBlock?.heading1?.elements?.[0]?.text_run?.content).toBe(
       'Title'
     );
   });
@@ -94,7 +94,7 @@ describe('transformMarkdownToBlocks', () => {
     );
     expect(codeBlock).toBeDefined();
     expect(codeBlock?.code?.style?.language).toBe(CodeLanguage.JavaScript);
-    expect(codeBlock?.code?.elements[0]?.text_run?.content).toBe(
+    expect(codeBlock?.code?.elements?.[0]?.text_run?.content).toBe(
       'const x = 1;'
     );
   });
@@ -131,8 +131,8 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Table
     );
     expect(tableBlock).toBeDefined();
-    expect(tableBlock?.table?.property.row_size).toBe(2);
-    expect(tableBlock?.table?.property.column_size).toBe(2);
+    expect(tableBlock?.table?.property?.row_size).toBe(2);
+    expect(tableBlock?.table?.property?.column_size).toBe(2);
   });
 
   it('should transform image', async () => {
@@ -151,8 +151,8 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Todo
     );
     expect(todoBlocks.length).toBe(2);
-    expect(todoBlocks[0].todo?.style?.done).toBe(true);
-    expect(todoBlocks[1].todo?.style?.done).toBe(false);
+    expect(todoBlocks[0]?.todo?.style?.done).toBe(true);
+    expect(todoBlocks[1]?.todo?.style?.done).toBe(false);
   });
 
   it('should handle bold text', async () => {
@@ -163,7 +163,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Text
     );
     expect(textBlock).toBeDefined();
-    const element = textBlock?.text?.elements[0];
+    const element = textBlock?.text?.elements?.[0];
     expect(element?.text_run?.content).toBe('bold text');
     expect(element?.text_run?.text_element_style?.bold).toBe(true);
   });
@@ -176,7 +176,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Text
     );
     expect(textBlock).toBeDefined();
-    const element = textBlock?.text?.elements[0];
+    const element = textBlock?.text?.elements?.[0];
     expect(element?.text_run?.text_element_style?.italic).toBe(true);
   });
 
@@ -188,7 +188,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Text
     );
     expect(textBlock).toBeDefined();
-    const codeElement = textBlock?.text?.elements.find(
+    const codeElement = textBlock?.text?.elements?.find(
       (e) => e.text_run?.text_element_style?.inline_code
     );
     expect(codeElement).toBeDefined();
@@ -202,7 +202,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Text
     );
     expect(textBlock).toBeDefined();
-    const linkElement = textBlock?.text?.elements.find(
+    const linkElement = textBlock?.text?.elements?.find(
       (e) => e.text_run?.text_element_style?.link?.url
     );
     expect(linkElement).toBeDefined();
@@ -219,7 +219,7 @@ describe('transformMarkdownToBlocks', () => {
       (b) => b.block_type === BlockType.Text
     );
     expect(textBlock).toBeDefined();
-    const element = textBlock?.text?.elements[0];
+    const element = textBlock?.text?.elements?.[0];
     expect(element?.text_run?.text_element_style?.strikethrough).toBe(true);
   });
 

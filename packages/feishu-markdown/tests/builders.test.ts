@@ -14,8 +14,8 @@ import {
   createTextBlock,
   createTextElement,
   createTodoBlock,
-} from '@/src/builders/index';
-import { BlockType, CodeLanguage } from '@/src/types/feishu';
+} from '@/builders/index';
+import { BlockType, CodeLanguage } from '@/types/feishu';
 
 describe('Block Builders', () => {
   describe('createTextElement', () => {
@@ -36,8 +36,8 @@ describe('Block Builders', () => {
       const elements = [createTextElement('Hello')];
       const block = createTextBlock(elements);
       expect(block.block_type).toBe(BlockType.Text);
-      expect(block.text.elements).toHaveLength(1);
-      expect(block.text.elements[0].text_run?.content).toBe('Hello');
+      expect(block.text?.elements).toHaveLength(1);
+      expect(block.text?.elements[0]?.text_run?.content).toBe('Hello');
     });
 
     it('should create a text block with custom block_id', () => {
@@ -58,22 +58,22 @@ describe('Block Builders', () => {
       const elements = [createTextElement('Title')];
       const block = createHeadingBlock(1, elements);
       expect(block.block_type).toBe(BlockType.Heading1);
-      expect(block.heading1.elements).toHaveLength(1);
-      expect(block.heading1.elements[0].text_run?.content).toBe('Title');
+      expect(block.heading1?.elements).toHaveLength(1);
+      expect(block.heading1?.elements[0]?.text_run?.content).toBe('Title');
     });
 
     it('should create a heading 2 block', () => {
       const elements = [createTextElement('Subtitle')];
       const block = createHeadingBlock(2, elements);
       expect(block.block_type).toBe(BlockType.Heading2);
-      expect(block.heading2.elements).toHaveLength(1);
+      expect(block.heading2?.elements).toHaveLength(1);
     });
 
     it('should create a heading 3 block', () => {
       const elements = [createTextElement('Section')];
       const block = createHeadingBlock(3, elements);
       expect(block.block_type).toBe(BlockType.Heading3);
-      expect(block.heading3.elements).toHaveLength(1);
+      expect(block.heading3?.elements).toHaveLength(1);
     });
   });
 
@@ -82,8 +82,8 @@ describe('Block Builders', () => {
       const elements = [createTextElement('Item')];
       const block = createBulletBlock(elements);
       expect(block.block_type).toBe(BlockType.Bullet);
-      expect(block.bullet.elements).toHaveLength(1);
-      expect(block.bullet.elements[0].text_run?.content).toBe('Item');
+      expect(block.bullet?.elements).toHaveLength(1);
+      expect(block.bullet?.elements[0]?.text_run?.content).toBe('Item');
     });
 
     it('should initialize children as empty array', () => {
@@ -98,7 +98,7 @@ describe('Block Builders', () => {
       const elements = [createTextElement('First')];
       const block = createOrderedBlock(elements);
       expect(block.block_type).toBe(BlockType.Ordered);
-      expect(block.ordered.elements).toHaveLength(1);
+      expect(block.ordered?.elements).toHaveLength(1);
     });
   });
 
@@ -106,14 +106,14 @@ describe('Block Builders', () => {
     it('should create a code block with language', () => {
       const block = createCodeBlock('const x = 1;', CodeLanguage.JavaScript);
       expect(block.block_type).toBe(BlockType.Code);
-      expect(block.code.elements).toHaveLength(1);
-      expect(block.code.elements[0].text_run?.content).toBe('const x = 1;');
-      expect(block.code.style?.language).toBe(CodeLanguage.JavaScript);
+      expect(block.code?.elements).toHaveLength(1);
+      expect(block.code?.elements[0]?.text_run?.content).toBe('const x = 1;');
+      expect(block.code?.style?.language).toBe(CodeLanguage.JavaScript);
     });
 
     it('should have language in style', () => {
       const block = createCodeBlock('text', CodeLanguage.PlainText);
-      expect(block.code.style?.language).toBe(CodeLanguage.PlainText);
+      expect(block.code?.style?.language).toBe(CodeLanguage.PlainText);
     });
   });
 
@@ -137,13 +137,13 @@ describe('Block Builders', () => {
     it('should create an image block with file token', () => {
       const block = createImageBlock('file_token_123');
       expect(block.block_type).toBe(BlockType.Image);
-      expect(block.image.token).toBe('file_token_123');
+      expect(block.image?.token).toBe('file_token_123');
     });
 
     it('should include width and height if provided', () => {
       const block = createImageBlock('token', 800, 600);
-      expect(block.image.width).toBe(800);
-      expect(block.image.height).toBe(600);
+      expect(block.image?.width).toBe(800);
+      expect(block.image?.height).toBe(600);
     });
   });
 
@@ -158,8 +158,8 @@ describe('Block Builders', () => {
         'cell6',
       ]);
       expect(block.block_type).toBe(BlockType.Table);
-      expect(block.table.property.row_size).toBe(3);
-      expect(block.table.property.column_size).toBe(2);
+      expect(block.table?.property?.row_size).toBe(3);
+      expect(block.table?.property?.column_size).toBe(2);
     });
 
     it('should have cell IDs in children', () => {
@@ -181,13 +181,13 @@ describe('Block Builders', () => {
       const elements = [createTextElement('Task')];
       const block = createTodoBlock(elements, false);
       expect(block.block_type).toBe(BlockType.Todo);
-      expect(block.todo.style?.done).toBe(false);
+      expect(block.todo?.style?.done).toBe(false);
     });
 
     it('should create a checked todo block', () => {
       const elements = [createTextElement('Done task')];
       const block = createTodoBlock(elements, true);
-      expect(block.todo.style?.done).toBe(true);
+      expect(block.todo?.style?.done).toBe(true);
     });
   });
 
@@ -198,8 +198,8 @@ describe('Block Builders', () => {
         backgroundColor: 7,
       });
       expect(block.block_type).toBe(BlockType.Callout);
-      expect(block.callout.emoji_id).toBe('💡');
-      expect(block.callout.background_color).toBe(7);
+      expect(block.callout?.emoji_id).toBe('💡');
+      expect(block.callout?.background_color).toBe(7);
     });
 
     it('should create callout with default values', () => {

@@ -44,10 +44,14 @@ export function createTextBlock(
   elements: TextElement[],
   blockId?: string
 ): FeishuBlock {
+  // Ensure elements is not empty, otherwise Feishu API will return invalid param
+  const finalElements =
+    elements.length > 0 ? elements : [createTextElement('')];
+
   return {
     block_id: blockId ?? generateBlockId(),
     block_type: BlockType.Text,
-    text: createTextBlockData(elements),
+    text: createTextBlockData(finalElements),
     children: [],
   };
 }

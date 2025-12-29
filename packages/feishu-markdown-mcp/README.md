@@ -19,10 +19,9 @@
  "servers": {
   "Feishu Markdown": {
    "command": "npx",
-   "cwd": "${workspaceFolder}",
    "args": [
     "-y",
-    "feishu-markdown-mcp"
+    "feishu-markdown-mcp@latest"
    ],
    "env": {
     "FEISHU_APP_ID": "${input:feishu-markdown-mcp-app-id}",

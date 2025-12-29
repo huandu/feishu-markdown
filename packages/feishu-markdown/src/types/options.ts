@@ -74,6 +74,13 @@ export interface ConvertOptions {
   mermaid?: MermaidOptions;
 
   /**
+   * Mermaid 临时目录
+   * 如果指定，将使用此目录存放生成的临时图片
+   * 如果未指定，将自动创建临时目录并在完成后删除
+   */
+  mermaidTempDir?: string;
+
+  /**
    * 每批创建的块数量上限
    * @default 50
    */
@@ -111,6 +118,12 @@ export interface MermaidOptions {
    * 输出图片高度
    */
   height?: number;
+
+  /**
+   * 临时目录路径
+   * @internal
+   */
+  tempDir?: string;
 }
 
 /**
