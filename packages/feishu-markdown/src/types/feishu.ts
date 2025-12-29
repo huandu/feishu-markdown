@@ -347,17 +347,13 @@ export interface CreateDocumentRequest {
 /**
  * 创建文档响应
  */
-export interface CreateDocumentResponse {
-  code: number;
-  msg: string;
-  data?: {
-    document: {
-      document_id: string;
-      revision_id: number;
-      title: string;
-    };
+export type CreateDocumentResponse = FeishuAPIResponse<{
+  document: {
+    document_id: string;
+    revision_id: number;
+    title: string;
   };
-}
+}>;
 
 /**
  * 创建块请求
@@ -379,25 +375,17 @@ export interface CreateDescendantBlocksRequest {
 /**
  * 创建块响应
  */
-export interface CreateBlocksResponse {
-  code: number;
-  msg: string;
-  data?: {
-    children: FeishuBlock[];
-    document_revision_id: number;
-  };
-}
+export type CreateBlocksResponse = FeishuAPIResponse<{
+  children: FeishuBlock[];
+  document_revision_id: number;
+}>;
 
 /**
  * 上传媒体响应
  */
-export interface UploadMediaResponse {
-  code: number;
-  msg: string;
-  data?: {
-    file_token: string;
-  };
-}
+export type UploadMediaResponse = FeishuAPIResponse<{
+  file_token: string;
+}>;
 
 /**
  * 更新块请求
@@ -415,12 +403,13 @@ export interface UpdateBlockRequest {
 }
 
 /**
- * API 错误响应
+ * 读取子块列表
  */
-export interface FeishuAPIError {
-  code: number;
-  msg: string;
-}
+export type BlockChildrenResponse = FeishuAPIResponse<{
+  items: FeishuBlock[];
+  page_token?: string;
+  has_more: boolean;
+}>;
 
 /**
  * 访问令牌响应
@@ -431,3 +420,26 @@ export interface TenantAccessTokenResponse {
   tenant_access_token?: string;
   expire?: number;
 }
+
+/**
+ * 飞书 API 响应
+ */
+export interface FeishuAPIResponse<T = unknown> {
+  code: number;
+  msg?: string;
+  data: T;
+}
+
+/**
+ * 批量获取用户 ID 响应
+ */
+export type BatchGetIdResponse = FeishuAPIResponse<{
+  user_list: {
+    user_id: string;
+    email: string;
+    status: {
+      is_frozen: boolean;
+      is_resigned: boolean;
+    };
+  }[];
+}>;

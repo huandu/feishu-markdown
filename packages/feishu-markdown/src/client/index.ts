@@ -2,12 +2,15 @@ import axios from 'axios';
 import type { AxiosError, AxiosInstance } from 'axios';
 import FormData from 'form-data';
 
-import { APIError } from '@/errors';
+import { APIError, FeishuDataError } from '@/errors';
 import type {
+  BatchGetIdResponse,
+  BlockChildrenResponse,
   CreateBlocksResponse,
   CreateDescendantBlocksRequest,
   CreateDocumentRequest,
   CreateDocumentResponse,
+  FeishuAPIResponse,
   FeishuBlock,
   TenantAccessTokenResponse,
   UpdateBlockRequest,
@@ -26,10 +29,11 @@ export class FeishuClient {
   private readonly retryTimes: number;
   private readonly retryDelay: number;
   private readonly http: AxiosInstance;
-  private readonly userAccessToken?: string;
+  private readonly feishuEmail?: string;
 
   private accessToken: string | null = null;
   private tokenExpiresAt = 0;
+  private feishuUserId?: string | null;
 
   constructor(options: FeishuMarkdownOptions) {
     this.appId = options.appId;
@@ -38,7 +42,7 @@ export class FeishuClient {
     this.timeout = options.timeout ?? 30000;
     this.retryTimes = options.retryTimes ?? 3;
     this.retryDelay = options.retryDelay ?? 1000;
-    this.userAccessToken = options.userAccessToken;
+    this.feishuEmail = options.feishuEmail;
 
     this.http = axios.create({
       baseURL: this.baseUrl,
@@ -51,13 +55,9 @@ export class FeishuClient {
 
   /**
    * 获取访问令牌
-   * 如果配置了 userAccessToken，直接返回
-   * 否则获取 tenant_access_token
+   * 获取 tenant_access_token
    */
   private async getAccessToken(): Promise<string> {
-    if (this.userAccessToken) {
-      return this.userAccessToken;
-    }
     return this.getTenantAccessToken();
   }
 
@@ -70,17 +70,17 @@ export class FeishuClient {
       return this.accessToken;
     }
 
+    const method = 'POST';
+    const url = '/open-apis/auth/v3/tenant_access_token/internal';
+
     const response = await retryWithBackoff(async () => {
       try {
-        return await this.http.post<TenantAccessTokenResponse>(
-          '/open-apis/auth/v3/tenant_access_token/internal',
-          {
-            app_id: this.appId,
-            app_secret: this.appSecret,
-          }
-        );
+        return await this.http.post<TenantAccessTokenResponse>(url, {
+          app_id: this.appId,
+          app_secret: this.appSecret,
+        });
       } catch (error) {
-        this.handleAxiosError(error);
+        this.handleAxiosError(method, url, error);
       }
     }, this.getRetryOptions());
 
@@ -88,6 +88,8 @@ export class FeishuClient {
       throw new APIError(
         `Failed to get tenant access token: ${response.data.msg}`,
         {
+          method,
+          url,
           feishuCode: response.data.code,
         }
       );
@@ -103,14 +105,19 @@ export class FeishuClient {
   /**
    * 处理 Axios 错误
    */
-  private handleAxiosError(error: unknown): never {
-    const axiosError = error as AxiosError<{ code: number; msg: string }>;
+  private handleAxiosError(method: string, url: string, error: unknown): never {
+    const axiosError = error as AxiosError<FeishuAPIResponse>;
     if (axiosError.response) {
-      throw new APIError(axiosError.response.data?.msg ?? axiosError.message, {
-        statusCode: axiosError.response.status,
-        feishuCode: axiosError.response.data?.code,
-        headers: axiosError.response.headers,
-      });
+      throw new APIError(
+        axiosError.response.data?.msg ?? `transport: ${axiosError.message}`,
+        {
+          method,
+          url,
+          statusCode: axiosError.response.status,
+          feishuCode: axiosError.response.data?.code,
+          headers: axiosError.response.headers,
+        }
+      );
     }
     throw error;
   }
@@ -172,7 +179,7 @@ export class FeishuClient {
         });
         return response.data;
       } catch (error) {
-        this.handleAxiosError(error);
+        this.handleAxiosError(method, url, error);
       }
     }, this.getRetryOptions());
   }
@@ -183,19 +190,82 @@ export class FeishuClient {
   async createDocument(
     options: CreateDocumentRequest = {}
   ): Promise<CreateDocumentResponse> {
+    const method = 'POST';
+    const url = '/open-apis/docx/v1/documents';
     const response = await this.request<CreateDocumentResponse>(
-      'POST',
-      '/open-apis/docx/v1/documents',
+      method,
+      url,
       options
     );
 
     if (response.code !== 0) {
       throw new APIError(`Failed to create document: ${response.msg}`, {
+        method,
+        url,
         feishuCode: response.code,
       });
     }
 
     return response;
+  }
+
+  /**
+   * 通过邮箱获取用户 ID
+   */
+  async getUserIdByEmail(email: string): Promise<string | null> {
+    const method = 'POST';
+    const url = '/open-apis/contact/v3/users/batch_get_id?user_id_type=user_id';
+    const response = await this.request<BatchGetIdResponse>(method, url, {
+      emails: [email],
+    });
+
+    if (response.code !== 0) {
+      throw new APIError(`Failed to get user id: ${response.msg}`, {
+        method,
+        url,
+        feishuCode: response.code,
+      });
+    }
+
+    const user = response.data?.user_list?.[0];
+    if (!user?.user_id) {
+      return null;
+    }
+
+    return user.user_id;
+  }
+
+  /**
+   * 添加协作者
+   */
+  async addCollaborator(token: string): Promise<void> {
+    if (!this.feishuEmail || this.feishuUserId === null) {
+      return;
+    }
+
+    this.feishuUserId ??= await this.getUserIdByEmail(this.feishuEmail);
+
+    if (!this.feishuUserId) {
+      throw new FeishuDataError(
+        `Failed to find user ID for email: ${this.feishuEmail}`
+      );
+    }
+
+    const method = 'POST';
+    const url = `/open-apis/drive/v1/permissions/${token}/members?type=docx`;
+    const response = await this.request<FeishuAPIResponse>(method, url, {
+      member_type: 'user_id',
+      member_id: this.feishuUserId,
+      perm: 'full_access',
+    });
+
+    if (response.code !== 0) {
+      throw new APIError(`Failed to add collaborator: ${response.msg}`, {
+        method,
+        url,
+        feishuCode: response.code,
+      });
+    }
   }
 
   /**
@@ -207,14 +277,18 @@ export class FeishuClient {
     parentBlockId: string,
     request: CreateDescendantBlocksRequest
   ): Promise<CreateBlocksResponse> {
+    const method = 'POST';
+    const url = `/open-apis/docx/v1/documents/${documentId}/blocks/${parentBlockId}/descendant`;
     const response = await this.request<CreateBlocksResponse>(
-      'POST',
-      `/open-apis/docx/v1/documents/${documentId}/blocks/${parentBlockId}/descendant`,
+      method,
+      url,
       request
     );
 
     if (response.code !== 0) {
       throw new APIError(`Failed to create blocks: ${response.msg}`, {
+        method,
+        url,
         feishuCode: response.code,
       });
     }
@@ -230,14 +304,18 @@ export class FeishuClient {
     blockId: string,
     request: UpdateBlockRequest
   ): Promise<void> {
-    const response = await this.request<{ code: number; msg: string }>(
-      'PATCH',
-      `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}`,
+    const method = 'POST';
+    const url = `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}`;
+    const response = await this.request<FeishuAPIResponse>(
+      method,
+      url,
       request
     );
 
     if (response.code !== 0) {
       throw new APIError(`Failed to update block: ${response.msg}`, {
+        method,
+        url,
         feishuCode: response.code,
       });
     }
@@ -263,13 +341,16 @@ export class FeishuClient {
     formData.append('parent_node', parentNode);
     formData.append('size', String(size ?? file.length));
 
+    const method = 'POST';
+    const url = '/open-apis/drive/v1/medias/upload_all';
+
     const response = await retryWithBackoff(async () => {
       try {
         const result = await this.http.post<{
           code: number;
           msg: string;
           data?: { file_token: string };
-        }>('/open-apis/drive/v1/medias/upload_all', formData, {
+        }>(url, formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             ...formData.getHeaders(),
@@ -279,12 +360,14 @@ export class FeishuClient {
         });
         return result.data;
       } catch (error) {
-        this.handleAxiosError(error);
+        this.handleAxiosError(method, url, error);
       }
     }, this.getRetryOptions());
 
     if (response.code !== 0 || !response.data?.file_token) {
       throw new APIError(`Failed to upload media: ${response.msg}`, {
+        method,
+        url,
         feishuCode: response.code,
       });
     }
@@ -303,9 +386,11 @@ export class FeishuClient {
     index?: number
   ): Promise<FeishuBlock> {
     // 1. 创建空图片块
+    const method = 'POST';
+    const url = `/open-apis/docx/v1/documents/${documentId}/blocks/${parentBlockId}/children`;
     const createResponse = await this.request<CreateBlocksResponse>(
-      'POST',
-      `/open-apis/docx/v1/documents/${documentId}/blocks/${parentBlockId}/children`,
+      method,
+      url,
       {
         index,
         children: [
@@ -321,6 +406,8 @@ export class FeishuClient {
       throw new APIError(
         `Failed to create image block: ${createResponse.msg}`,
         {
+          method,
+          url,
           feishuCode: createResponse.code,
         }
       );
@@ -330,7 +417,10 @@ export class FeishuClient {
     const blockId = imageBlock.block_id;
 
     if (!blockId) {
-      throw new APIError('Image block created but no block_id returned');
+      throw new APIError('Image block created but no block_id returned', {
+        method,
+        url,
+      });
     }
 
     // 2. 上传图片
@@ -361,13 +451,14 @@ export class FeishuClient {
    * 删除块
    */
   async deleteBlock(documentId: string, blockId: string): Promise<void> {
-    const response = await this.request<{ code: number; msg: string }>(
-      'DELETE',
-      `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}`
-    );
+    const method = 'DELETE';
+    const url = `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}`;
+    const response = await this.request<FeishuAPIResponse>(method, url);
 
     if (response.code !== 0) {
       throw new APIError(`Failed to delete block: ${response.msg}`, {
+        method,
+        url,
         feishuCode: response.code,
       });
     }
@@ -382,19 +473,16 @@ export class FeishuClient {
     pageToken?: string,
     pageSize = 500
   ): Promise<{ items: FeishuBlock[]; pageToken?: string; hasMore: boolean }> {
-    const response = await this.request<{
-      code: number;
-      msg: string;
-      data: { items: FeishuBlock[]; page_token?: string; has_more: boolean };
-    }>(
-      'GET',
-      `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}/children?page_size=${pageSize}${
-        pageToken ? `&page_token=${pageToken}` : ''
-      }`
-    );
+    const method = 'GET';
+    const url = `/open-apis/docx/v1/documents/${documentId}/blocks/${blockId}/children?page_size=${pageSize}${
+      pageToken ? `&page_token=${pageToken}` : ''
+    }`;
+    const response = await this.request<BlockChildrenResponse>(method, url);
 
     if (response.code !== 0) {
       throw new APIError(`Failed to list children: ${response.msg}`, {
+        method,
+        url,
         feishuCode: response.code,
       });
     }

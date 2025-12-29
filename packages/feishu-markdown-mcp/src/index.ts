@@ -1,10 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  type ConvertOptions,
-  FeishuMarkdown,
-  type FeishuMarkdownOptions,
-} from 'feishu-markdown';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { FeishuMarkdown, type FeishuMarkdownOptions } from 'feishu-markdown';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -13,7 +10,6 @@ import pkg from '../package.json' with { type: 'json' };
 
 // Config storage
 let feishuConfig: FeishuMarkdownOptions | null = null;
-const defaultConvertOptions: ConvertOptions = {};
 
 const server = new McpServer({
   name: 'feishu-markdown-mcp',
@@ -23,9 +19,7 @@ const server = new McpServer({
 // Helper to get client
 function getFeishuMarkdown(): FeishuMarkdown {
   if (!feishuConfig) {
-    throw new Error(
-      '飞书配置未设置。请使用 set_config 工具或提供环境变量。'
-    );
+    throw new Error('飞书配置未设置。请使用 set_config 工具或提供环境变量。');
   }
   return new FeishuMarkdown(feishuConfig);
 }
@@ -34,8 +28,7 @@ function getFeishuMarkdown(): FeishuMarkdown {
 const SetConfigSchema = z.object({
   appId: z.string(),
   appSecret: z.string(),
-  baseUrl: z.string().optional(),
-  userAccessToken: z.string().optional(),
+  feishuEmail: z.string().optional(),
 });
 
 const MermaidOptionsSchema = z.object({
@@ -52,6 +45,7 @@ const ConvertOptionsSchema = z.object({
   downloadImages: z.boolean().optional(),
   mermaid: MermaidOptionsSchema.optional(),
   batchSize: z.number().optional(),
+  mermaidTempDir: z.string().optional(),
 });
 
 const UploadFileSchema = z.object({
@@ -78,13 +72,8 @@ server.registerTool(
     description: '设置飞书应用配置',
     inputSchema: SetConfigSchema.shape,
   },
-  async (args) => {
-    feishuConfig = {
-      appId: args.appId,
-      appSecret: args.appSecret,
-      baseUrl: args.baseUrl,
-      userAccessToken: args.userAccessToken,
-    };
+  async ({ appId, appSecret, feishuEmail }) => {
+    feishuConfig = { appId, appSecret, feishuEmail };
     return {
       content: [{ type: 'text', text: '配置设置成功' }],
     };
@@ -97,19 +86,15 @@ server.registerTool(
     description: '上传本地 Markdown 文件到飞书',
     inputSchema: UploadFileSchema.shape,
   },
-  async (args) => {
-    const markdown = await fs.readFile(args.filePath, 'utf-8');
+  async ({ filePath, ...options }) => {
+    const markdown = await fs.readFile(filePath, 'utf-8');
     const feishu = getFeishuMarkdown();
-    const { filePath, ...options } = args;
-    const result = await feishu.convert(markdown, {
-      ...defaultConvertOptions,
-      ...options,
-      title: options.title ?? path.basename(filePath),
-      imageBaseDir: path.dirname(filePath),
-    });
-    return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+    return callTool(() =>
+      feishu.convert(markdown, {
+        ...options,
+        title: options.title ?? path.basename(filePath),
+      })
+    );
   }
 );
 
@@ -119,17 +104,14 @@ server.registerTool(
     description: '上传 Markdown 文本到飞书',
     inputSchema: UploadTextSchema.shape,
   },
-  async (args) => {
+  async ({ text, ...options }) => {
     const feishu = getFeishuMarkdown();
-    const { text, ...options } = args;
-    const result = await feishu.convert(text, {
-      ...defaultConvertOptions,
-      ...options,
-      title: options.title ?? 'Untitled',
-    });
-    return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+    return callTool(() =>
+      feishu.convert(text, {
+        ...options,
+        title: options.title ?? 'Untitled',
+      })
+    );
   }
 );
 
@@ -139,8 +121,8 @@ server.registerTool(
     description: '追加或替换飞书文档内容',
     inputSchema: UpdateDocSchema.shape,
   },
-  async (args) => {
-    const match = /(?:docx|wiki)\/([a-zA-Z0-9]+)/.exec(args.url);
+  async ({ url, markdown, mode, ...options }) => {
+    const match = /(?:docx|wiki)\/([a-zA-Z0-9]+)/.exec(url);
     if (!match) {
       throw new Error('无效的飞书 URL，无法提取文档 ID');
     }
@@ -151,25 +133,12 @@ server.registerTool(
     }
 
     const feishu = getFeishuMarkdown();
-    const { url: _url, markdown, mode, ...options } = args;
-    
-    let result;
-    if (mode === 'replace') {
-      result = await feishu.replace(
-        documentId,
-        markdown,
-        { ...defaultConvertOptions, ...options }
-      );
-    } else {
-      result = await feishu.append(
-        documentId,
-        markdown,
-        { ...defaultConvertOptions, ...options }
-      );
-    }
-    return {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+
+    return callTool(() =>
+      mode === 'replace'
+        ? feishu.replace(documentId, markdown, options)
+        : feishu.append(documentId, markdown, options)
+    );
   }
 );
 
@@ -178,10 +147,31 @@ if (process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET) {
   feishuConfig = {
     appId: process.env.FEISHU_APP_ID,
     appSecret: process.env.FEISHU_APP_SECRET,
-    baseUrl: process.env.FEISHU_BASE_URL,
-    userAccessToken: process.env.FEISHU_USER_ACCESS_TOKEN,
+    feishuEmail: process.env.FEISHU_USER_EMAIL,
   };
 }
+
+// 安全的调用工具，如果工具抛异常，将异常信息返回给调用者
+const callTool = async <T>(
+  fn: () => PromiseLike<T>
+): Promise<CallToolResult> => {
+  try {
+    const result = await fn();
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    };
+  } catch (e) {
+    const err = e as Error;
+    const result = {
+      error: err.name,
+      message: `uncaught error: ${err.message}`,
+      stack: err.stack,
+    };
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    };
+  }
+};
 
 async function run(): Promise<void> {
   const transport = new StdioServerTransport();

@@ -37,10 +37,10 @@ export interface FeishuMarkdownOptions {
   retryDelay?: number;
 
   /**
-   * 用户访问令牌
-   * 如果提供，将优先使用此令牌而不是 tenant_access_token
+   * 飞书用户邮箱
+   * 如果指定，则每次在创建文件后自动将制定的这个飞书用户设置成文档的协作者，并具有 full_access 权限
    */
-  userAccessToken?: string;
+  feishuEmail?: string;
 }
 
 /**

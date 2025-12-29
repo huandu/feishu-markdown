@@ -8,7 +8,6 @@
 - **上传 Markdown 文本**：将原始 Markdown 文本上传到飞书作为新文档。
 - **更新文档**：追加或替换现有飞书文档的内容。
 - **配置**：动态设置飞书 App ID 和 Secret。
-- **用户身份支持**：支持使用 `user_access_token` 以用户身份操作文档。
 
 ## VSCode 使用（MCP Server）
 
@@ -75,8 +74,7 @@ pnpm build
 
 - `FEISHU_APP_ID`: 你的飞书 App ID。
 - `FEISHU_APP_SECRET`: 你的飞书 App Secret。
-- `FEISHU_BASE_URL`: (可选) 飞书 API 基础 URL (默认: `https://open.feishu.cn`)。
-- `FEISHU_USER_ACCESS_TOKEN`: (可选) 用户访问令牌，用于以用户身份操作。
+- `FEISHU_USER_EMAIL`: (可选) 飞书用户邮箱。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
 
 ### 运行服务器
 
@@ -92,8 +90,7 @@ node dist/index.js
 
 - `appId` (string): 飞书 App ID。
 - `appSecret` (string): 飞书 App Secret。
-- `baseUrl` (string, 可选): API 基础 URL。
-- `userAccessToken` (string, 可选): 用户访问令牌。
+- `feishuEmail` (string, 可选): 飞书用户邮箱。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
 
 #### `upload_markdown_file`
 

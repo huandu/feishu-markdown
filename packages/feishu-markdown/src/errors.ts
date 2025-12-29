@@ -60,13 +60,31 @@ export class APIError extends FeishuMarkdownError {
   constructor(
     message: string,
     options?: {
+      method?: string;
+      url?: string;
       statusCode?: number;
       feishuCode?: number;
       headers?: Record<string, unknown>;
       cause?: Error;
     }
   ) {
-    super(message, 'API_ERROR', options?.cause);
+    const msgExtras: [string, unknown][] = [
+      ['method', options?.method],
+      ['url', options?.url],
+      ['statusCode', options?.statusCode],
+      ['feishuCode', options?.feishuCode],
+      ['headers', options?.headers],
+    ];
+    const extras = msgExtras
+      .filter((v) => v[1] !== undefined)
+      .map(([k, v]) => `[${k}=${JSON.stringify(v)}]`)
+      .join(' ');
+    super(
+      extras ? `${message} ${extras}` : message,
+      'API_ERROR',
+      options?.cause
+    );
+
     this.name = 'APIError';
     this.statusCode = options?.statusCode;
     this.feishuCode = options?.feishuCode;
@@ -105,5 +123,16 @@ export class MermaidError extends FeishuMarkdownError {
   constructor(message: string, cause?: Error) {
     super(message, 'MERMAID_ERROR', cause);
     this.name = 'MermaidError';
+  }
+}
+
+/**
+ * 飞书数据错误
+ * 大概率是因为数据不存在或格式不正确引起的错误
+ */
+export class FeishuDataError extends FeishuMarkdownError {
+  constructor(message: string, cause?: Error) {
+    super(message, 'FEISHU_DATA_ERROR', cause);
+    this.name = 'FeishuDataError';
   }
 }

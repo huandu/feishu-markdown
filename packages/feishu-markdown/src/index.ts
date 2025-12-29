@@ -84,6 +84,9 @@ export class FeishuMarkdown {
         );
       }
 
+      // 添加协作者
+      await this.client.addCollaborator(documentId);
+
       // 4. 处理图片
       await this.processImages(documentId, blocks, imageBuffers, mergedOptions);
 
@@ -118,7 +121,7 @@ export class FeishuMarkdown {
               buf,
               fileName,
               'docx_image',
-              block.block_id,
+              documentId,
               buf.length
             );
             await this.client.updateBlock(documentId, block.block_id, {
