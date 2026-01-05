@@ -1,5 +1,9 @@
 # Feishu Markdown MCP Server
 
+[![npm version](https://img.shields.io/npm/v/feishu-markdown-mcp.svg)](https://www.npmjs.com/package/feishu-markdown-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/feishu-markdown-mcp.svg)](https://www.npmjs.com/package/feishu-markdown-mcp)
+[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml)
+
 这是一个 Model Context Protocol (MCP) 服务器，提供与飞书（Lark）文档交互的工具。它允许你将 Markdown 文件或文本上传到飞书，并更新现有文档。
 
 ## 功能
