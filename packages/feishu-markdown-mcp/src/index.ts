@@ -1,7 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { FeishuMarkdown, type FeishuMarkdownOptions } from 'feishu-markdown';
+import {
+  APIError,
+  FeishuMarkdown,
+  type FeishuMarkdownOptions,
+} from 'feishu-markdown';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -28,7 +32,7 @@ function getFeishuMarkdown(): FeishuMarkdown {
 const SetConfigSchema = z.object({
   appId: z.string(),
   appSecret: z.string(),
-  feishuEmail: z.string().optional(),
+  feishuMobile: z.string().optional(),
 });
 
 const MermaidOptionsSchema = z.object({
@@ -72,8 +76,8 @@ server.registerTool(
     description: '设置飞书应用配置',
     inputSchema: SetConfigSchema.shape,
   },
-  async ({ appId, appSecret, feishuEmail }) => {
-    feishuConfig = { appId, appSecret, feishuEmail };
+  async ({ appId, appSecret, feishuMobile }) => {
+    feishuConfig = { appId, appSecret, feishuMobile };
     return {
       content: [{ type: 'text', text: '配置设置成功' }],
     };
@@ -147,7 +151,7 @@ if (process.env.FEISHU_APP_ID && process.env.FEISHU_APP_SECRET) {
   feishuConfig = {
     appId: process.env.FEISHU_APP_ID,
     appSecret: process.env.FEISHU_APP_SECRET,
-    feishuEmail: process.env.FEISHU_USER_EMAIL,
+    feishuMobile: process.env.FEISHU_USER_MOBILE,
   };
 }
 
@@ -161,11 +165,11 @@ const callTool = async <T>(
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     };
   } catch (e) {
-    const err = e as Error;
     const result = {
-      error: err.name,
-      message: `uncaught error: ${err.message}`,
-      stack: err.stack,
+      error: e instanceof Error ? e.name : 'UnknownError',
+      message: `uncaught error: ${e instanceof Error ? e.message : e}`,
+      fullMessage: e instanceof APIError ? e.fullMessage : undefined,
+      stack: e instanceof Error ? e.stack : undefined,
     };
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],

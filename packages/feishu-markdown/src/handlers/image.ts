@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { readFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
 
 import { UploadError } from '@/errors';
@@ -32,7 +31,8 @@ export interface ImageReference {
 }
 
 export interface PreparedImage {
-  buffer: Buffer;
+  buffer?: Buffer;
+  path?: string;
   fileName: string;
 }
 
@@ -81,17 +81,8 @@ export async function loadImage(
       return { buffer: source.buffer, fileName: source.fileName };
 
     case 'path':
-      try {
-        const buffer = await readFile(source.path);
-        const fileName = basename(source.path);
-        return { buffer, fileName };
-      } catch (error) {
-        throw new UploadError(
-          `Failed to read image file: ${source.path}`,
-          source.path,
-          error instanceof Error ? error : undefined
-        );
-      }
+      // 优化：不直接读取文件内容，而是返回路径，在上传时再流式读取
+      return { path: source.path, fileName: basename(source.path) };
 
     case 'url':
       if (!downloadEnabled) {

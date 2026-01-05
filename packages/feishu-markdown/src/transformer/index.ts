@@ -49,13 +49,11 @@ import {
 interface TransformContext {
   options: ConvertOptions;
   blocks: DescendantBlock[];
-  rootChildrenIds: string[];
   imageBuffers: Map<string, ImageReference>;
 }
 
 export interface TransformResult {
   blocks: DescendantBlock[];
-  rootChildrenIds: string[];
   imageBuffers: Map<string, ImageReference>;
 }
 
@@ -81,7 +79,6 @@ export async function transformMarkdownToBlocks(
   const context: TransformContext = {
     options,
     blocks: [],
-    rootChildrenIds: [],
     imageBuffers: new Map(),
   };
 
@@ -91,7 +88,6 @@ export async function transformMarkdownToBlocks(
 
   return {
     blocks: context.blocks,
-    rootChildrenIds: context.rootChildrenIds,
     imageBuffers: context.imageBuffers,
   };
 }
@@ -129,9 +125,7 @@ function addBlock(
 
   context.blocks.push(descendantBlock);
 
-  if (parentBlockId === null) {
-    context.rootChildrenIds.push(descendantBlock.block_id);
-  } else {
+  if (parentBlockId !== null) {
     // 找到父块并添加子块 ID
     const parentBlock = context.blocks.find(
       (b) => b.block_id === parentBlockId
@@ -354,18 +348,15 @@ async function handleMermaidCode(
   };
 
   try {
-    const { buffer, fileName } = await renderMermaid(
-      node.value,
-      mermaidOptions
-    );
+    const { path, fileName } = await renderMermaid(node.value, mermaidOptions);
 
     const blockId = generateBlockId();
     const block = createImageBlock(undefined, undefined, undefined, blockId);
     addBlock(block, context, parentBlockId);
 
-    // 保存图片缓冲区供后续上传 — 存为 buffer 源
+    // 保存图片路径供后续上传 — 存为 path 源
     context.imageBuffers.set(blockId, {
-      source: { type: 'buffer', buffer, fileName },
+      source: { type: 'path', path },
       fileName,
     });
   } catch (error) {
@@ -433,6 +424,46 @@ async function handleTable(
     return;
   }
 
+  // Calculate column widths
+  const colMaxLengths = new Array(columnSize).fill(0) as number[];
+  for (const row of allRows) {
+    row.children.forEach((cell, colIndex) => {
+      if (colIndex < columnSize) {
+        const elements = extractTextElements(cell.children);
+        const len = elements.reduce(
+          (acc, el) => acc + (el.text_run?.content.length ?? 0),
+          0
+        );
+        colMaxLengths[colIndex] = Math.max(len, 0);
+      }
+    });
+  }
+
+  const flexibleColumnDefaultWidth = 130;
+  let flexibleColumnCount = 0;
+  let columnWidths: number[] = colMaxLengths.map((count) => {
+    if (count <= 2) return 50;
+    if (count <= 4) return 80;
+    if (count === 5) return 100;
+    if (count === 6) return 120;
+
+    flexibleColumnCount++;
+    return flexibleColumnDefaultWidth; // >= 6
+  });
+
+  if (flexibleColumnCount) {
+    const maxTableWidth = 820;
+    const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
+    if (totalWidth < maxTableWidth) {
+      const delta = Math.floor(
+        (maxTableWidth - totalWidth) / flexibleColumnCount
+      );
+      columnWidths = columnWidths.map((w) =>
+        w === flexibleColumnDefaultWidth ? w + delta : w
+      );
+    }
+  }
+
   // Split table into chunks to avoid exceeding API limits
   // Feishu API has a limit on the number of blocks in a single request.
   // A table with many cells can easily exceed this limit because each cell is a block,
@@ -485,7 +516,8 @@ async function handleTable(
       rowSize,
       columnSize,
       cellBlockIds,
-      tableBlockId
+      tableBlockId,
+      columnWidths
     );
 
     // 添加表格块

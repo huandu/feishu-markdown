@@ -37,6 +37,22 @@ export enum BlockType {
   QuoteContainer = 34,
   Task = 35,
   OKR = 36,
+  OKRObjective = 37,
+  OKRKeyResult = 38,
+  OKRProgress = 39,
+  DocWidget = 40,
+  JiraIssue = 41,
+  WikiCatalog = 42,
+  Board = 43,
+  Agenda = 44,
+  AgendaItem = 45,
+  AgendaItemTitle = 46,
+  AgendaItemContent = 47,
+  LinkPreview = 48,
+  SyncedBlock = 49,
+  SyncedBlockContainer = 50,
+  WikiCatalogV2 = 51,
+  AITemplate = 52,
   Undefined = 999,
 }
 
@@ -347,13 +363,13 @@ export interface CreateDocumentRequest {
 /**
  * 创建文档响应
  */
-export type CreateDocumentResponse = FeishuAPIResponse<{
+export interface CreateDocumentResponse {
   document: {
     document_id: string;
     revision_id: number;
     title: string;
   };
-}>;
+}
 
 /**
  * 创建块请求
@@ -375,41 +391,77 @@ export interface CreateDescendantBlocksRequest {
 /**
  * 创建块响应
  */
-export type CreateBlocksResponse = FeishuAPIResponse<{
+export interface CreateBlocksResponse {
   children: FeishuBlock[];
   document_revision_id: number;
-}>;
+  block_id_relations: BlockIdRelation[];
+}
+
+/**
+ * 块 ID 映射关系
+ */
+export interface BlockIdRelation {
+  temporary_block_id: string;
+  block_id: string;
+}
 
 /**
  * 上传媒体响应
  */
-export type UploadMediaResponse = FeishuAPIResponse<{
+export interface UploadMediaResponse {
   file_token: string;
-}>;
+}
 
 /**
- * 更新块请求
+ * 替换图片请求
  */
-export interface UpdateBlockRequest {
-  replace_image?: {
+export interface ReplaceImageRequest {
+  replace_image: {
     token: string;
   };
-  replace_file?: {
+}
+
+/**
+ * 替换文件请求
+ */
+export interface ReplaceFileRequest {
+  replace_file: {
     token: string;
   };
-  update_text_elements?: {
+}
+
+/**
+ * 更新文本元素请求
+ */
+export interface UpdateTextElementsRequest {
+  update_text_elements: {
     elements: TextElement[];
   };
 }
 
 /**
+ * 更新块请求
+ */
+export type UpdateBlockRequest =
+  | ReplaceImageRequest
+  | ReplaceFileRequest
+  | UpdateTextElementsRequest;
+
+/**
+ * 批量更新块请求项
+ */
+export type BatchUpdateBlockRequest = UpdateBlockRequest & {
+  block_id: string;
+};
+
+/**
  * 读取子块列表
  */
-export type BlockChildrenResponse = FeishuAPIResponse<{
+export interface BlockChildrenResponse {
   items: FeishuBlock[];
   page_token?: string;
   has_more: boolean;
-}>;
+}
 
 /**
  * 访问令牌响应
@@ -433,7 +485,7 @@ export interface FeishuAPIResponse<T = unknown> {
 /**
  * 批量获取用户 ID 响应
  */
-export type BatchGetIdResponse = FeishuAPIResponse<{
+export interface BatchGetIdResponse {
   user_list: {
     user_id: string;
     email: string;
@@ -442,4 +494,4 @@ export type BatchGetIdResponse = FeishuAPIResponse<{
       is_resigned: boolean;
     };
   }[];
-}>;
+}

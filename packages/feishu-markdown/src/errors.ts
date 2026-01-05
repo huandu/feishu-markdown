@@ -53,42 +53,58 @@ export class UploadError extends FeishuMarkdownError {
  * 飞书 API 错误
  */
 export class APIError extends FeishuMarkdownError {
-  statusCode?: number;
-  feishuCode?: number;
-  headers?: Record<string, unknown>;
+  /** HTTP status code */
+  readonly statusCode: number;
+  /** 飞书返回的错误码；如果没有解析出飞书错误码，则为 -1 */
+  readonly feishuCode: number;
+  /** 飞书返回的错误信息；如果没有解析出飞书错误信息，则为 '' */
+  readonly feishuMessage: string;
+  /** HTTP 响应头 */
+  readonly headers?: Record<string, unknown>;
+  /** 完整错误信息 */
+  readonly fullMessage: string;
 
   constructor(
     message: string,
     options?: {
       method?: string;
       url?: string;
+      request?: unknown;
       statusCode?: number;
       feishuCode?: number;
+      feishuMessage?: string;
       headers?: Record<string, unknown>;
       cause?: Error;
     }
   ) {
+    super(message, 'API_ERROR', options?.cause);
+
+    this.name = 'APIError';
+    this.statusCode = options?.statusCode ?? 200;
+    this.headers = options?.headers;
+    this.feishuCode = options?.feishuCode ?? -1;
+    this.feishuMessage = options?.feishuMessage ?? '';
+
     const msgExtras: [string, unknown][] = [
       ['method', options?.method],
       ['url', options?.url],
+      ['request', options?.request],
       ['statusCode', options?.statusCode],
       ['feishuCode', options?.feishuCode],
+      ['feishuMessage', options?.feishuMessage],
       ['headers', options?.headers],
     ];
-    const extras = msgExtras
+    const stringify = (v: unknown) =>
+      typeof v === 'string' ||
+      typeof v === 'number' ||
+      typeof v === 'boolean' ||
+      typeof v === 'undefined'
+        ? v
+        : JSON.stringify(v);
+    this.fullMessage = msgExtras
       .filter((v) => v[1] !== undefined)
-      .map(([k, v]) => `[${k}=${JSON.stringify(v)}]`)
+      .map(([k, v]) => `[${k}=${stringify(v)}]`)
       .join(' ');
-    super(
-      extras ? `${message} ${extras}` : message,
-      'API_ERROR',
-      options?.cause
-    );
-
-    this.name = 'APIError';
-    this.statusCode = options?.statusCode;
-    this.feishuCode = options?.feishuCode;
-    this.headers = options?.headers;
   }
 
   /**

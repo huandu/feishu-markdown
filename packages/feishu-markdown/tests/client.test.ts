@@ -22,11 +22,11 @@ describe('FeishuClient', () => {
     (axios.create as any).mockReturnValue(mockAxiosInstance);
   });
 
-  it('should call addCollaborator when feishuEmail is set', async () => {
+  it('should call addCollaborator when feishuMobile is set', async () => {
     const client = new FeishuClient({
       appId: 'appId',
       appSecret: 'appSecret',
-      feishuEmail: 'test@example.com',
+      feishuMobile: '13800000000',
     });
 
     // Mock getTenantAccessToken response
@@ -38,7 +38,7 @@ describe('FeishuClient', () => {
       },
     });
 
-    // Mock getUserIdByEmail response
+    // Mock getUserIdByMobile response
     mockAxiosInstance.request.mockResolvedValueOnce({
       data: {
         code: 0,
@@ -47,7 +47,7 @@ describe('FeishuClient', () => {
           user_list: [
             {
               user_id: 'ou_123456',
-              email: 'test@example.com',
+              mobile: '13800000000',
             },
           ],
         },
@@ -67,14 +67,24 @@ describe('FeishuClient', () => {
     expect(mockPost).toHaveBeenCalledTimes(1); // Token call
     expect(mockAxiosInstance.request).toHaveBeenCalledTimes(2); // API calls
 
-    // Check getUserIdByEmail call
+    // Check getTenantAccessToken call
+    expect(mockPost).toHaveBeenNthCalledWith(
+      1,
+      '/open-apis/auth/v3/tenant_access_token/internal',
+      {
+        app_id: 'appId',
+        app_secret: 'appSecret',
+      }
+    );
+
+    // Check getUserIdByMobile call
     expect(mockAxiosInstance.request).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         method: 'POST',
-        url: '/open-apis/contact/v3/users/batch_get_id?user_id_type=user_id',
+        url: '/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id',
         data: {
-          emails: ['test@example.com'],
+          mobiles: ['13800000000'],
         },
       })
     );
@@ -86,7 +96,7 @@ describe('FeishuClient', () => {
         method: 'POST',
         url: '/open-apis/drive/v1/permissions/docToken/members?type=docx',
         data: {
-          member_type: 'user_id',
+          member_type: 'openid',
           member_id: 'ou_123456',
           perm: 'full_access',
         },
@@ -94,7 +104,76 @@ describe('FeishuClient', () => {
     );
   });
 
-  it('should not call addCollaborator when feishuEmail is not set', async () => {
+  it('should call transferOwner when feishuMobile is set', async () => {
+    const client = new FeishuClient({
+      appId: 'appId',
+      appSecret: 'appSecret',
+      feishuMobile: '13800000000',
+    });
+
+    // Mock getTenantAccessToken response
+    mockPost.mockResolvedValueOnce({
+      data: {
+        code: 0,
+        tenant_access_token: 'token',
+        expire: 7200,
+      },
+    });
+
+    // Mock getUserIdByMobile response
+    mockAxiosInstance.request.mockResolvedValueOnce({
+      data: {
+        code: 0,
+        msg: 'success',
+        data: {
+          user_list: [
+            {
+              user_id: 'ou_123456',
+              mobile: '13800000000',
+            },
+          ],
+        },
+      },
+    });
+
+    // Mock transferOwner response
+    mockAxiosInstance.request.mockResolvedValueOnce({
+      data: {
+        code: 0,
+        msg: 'success',
+      },
+    });
+
+    await client.transferOwner('docToken');
+
+    expect(mockPost).toHaveBeenCalledTimes(1); // Token call
+    expect(mockAxiosInstance.request).toHaveBeenCalledTimes(2); // API calls
+
+    // Check getTenantAccessToken call
+    expect(mockPost).toHaveBeenNthCalledWith(
+      1,
+      '/open-apis/auth/v3/tenant_access_token/internal',
+      {
+        app_id: 'appId',
+        app_secret: 'appSecret',
+      }
+    );
+
+    // Check transferOwner call
+    expect(mockAxiosInstance.request).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        method: 'POST',
+        url: '/open-apis/drive/v1/permissions/docToken/members/transfer_owner?type=docx',
+        data: {
+          member_type: 'openid',
+          member_id: 'ou_123456',
+        },
+      })
+    );
+  });
+
+  it('should not call addCollaborator when feishuMobile is not set', async () => {
     const client = new FeishuClient({
       appId: 'appId',
       appSecret: 'appSecret',

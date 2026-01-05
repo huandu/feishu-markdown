@@ -37,10 +37,10 @@ export interface FeishuMarkdownOptions {
   retryDelay?: number;
 
   /**
-   * 飞书用户邮箱
+   * 飞书用户手机号
    * 如果指定，则每次在创建文件后自动将制定的这个飞书用户设置成文档的协作者，并具有 full_access 权限
    */
-  feishuEmail?: string;
+  feishuMobile?: string;
 }
 
 /**
@@ -121,7 +121,6 @@ export interface MermaidOptions {
 
   /**
    * 临时目录路径
-   * @internal
    */
   tempDir?: string;
 }

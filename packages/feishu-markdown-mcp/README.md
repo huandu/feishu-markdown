@@ -11,7 +11,9 @@
 
 ## VSCode 使用（MCP Server）
 
-如果你使用 VSCode 的 Model Context Protocol 调试/运行此服务器，可以用一个 `mcp.json` 文件让 VSCode 在启动 MCP 服务器时自动传入 App ID / Secret。下面是仓库中可用的、已经配置好的示例（放置于仓库根目录的 `.vscode/mcp.json`）：
+推荐使用 VScode 自带的自动添加 MCP 服务的功能（Automatically discover MCP servers），详情见 [VSCode MCP 文档](https://code.visualstudio.com/docs/copilot/customization/mcp-servers)。
+
+如果需要手动创建 `mcp.json` 文件，下面是一个已经配置好的示例（放置于仓库根目录的 `.vscode/mcp.json`）：
 
 ```json
 {
@@ -39,6 +41,11 @@
    "id": "feishu-markdown-mcp-app-secret",
    "type": "promptString",
    "description": "输入飞书 App Secret"
+  },
+  {
+    "id": "feishu-markdown-mcp-feishu-mobile",
+    "type": "promptString",
+    "description": "输入飞书用户手机号（可选）"
   }
  ]
 }
@@ -52,8 +59,12 @@
 
 关于飞书 App 的权限：请在飞书开放平台创建应用（<https://open.feishu.cn/app>），并为该 App 授予以下权限：
 
-- 创建及编辑新版文档：`docx:document`
-- 编辑新版文档（写入权限）：`docx:document:write_only`
+- 基础权限
+  - 创建及编辑新版文档：`docx:document`
+  - 上传图片和附件到云文档中：`docs:document.media:upload`
+- 获取用户信息（用于通过手机号找到用户 ID，从而转交文档所有权给用户）
+  - 获取用户 user ID：`contact:user.employee_id:readonly`
+  - 通过手机号或邮箱获取用户 ID：`contact:user.id:readonly`
 
 获得 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 后，可以通过上述 `mcp.json` 运行或把它们作为环境变量提供（详见下方“环境变量”一节）。
 
@@ -74,7 +85,7 @@ pnpm build
 
 - `FEISHU_APP_ID`: 你的飞书 App ID。
 - `FEISHU_APP_SECRET`: 你的飞书 App Secret。
-- `FEISHU_USER_EMAIL`: (可选) 飞书用户邮箱。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
+- `FEISHU_USER_MOBILE`: (可选) 飞书用户手机号。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
 
 ### 运行服务器
 
@@ -90,7 +101,7 @@ node dist/index.js
 
 - `appId` (string): 飞书 App ID。
 - `appSecret` (string): 飞书 App Secret。
-- `feishuEmail` (string, 可选): 飞书用户邮箱。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
+- `feishuMobile` (string, 可选): 飞书用户手机号。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
 
 #### `upload_markdown_file`
 

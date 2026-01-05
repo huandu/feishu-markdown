@@ -41,9 +41,7 @@ describe('FeishuMarkdown', () => {
       });
 
       const result = await instance.parse('# Hello World\n\nThis is a test.');
-
-      expect(result.blocks.length).toBeGreaterThan(0);
-      expect(result.rootChildrenIds.length).toBeGreaterThan(0);
+      expect(result.length).toBeGreaterThan(0);
     });
 
     it('should parse complex markdown', async () => {
@@ -93,9 +91,7 @@ The end.
 `;
 
       const result = await instance.parse(markdown);
-
-      expect(result.blocks.length).toBeGreaterThan(10);
-      expect(result.rootChildrenIds.length).toBeGreaterThan(5);
+      expect(result.length).toBeGreaterThan(10);
     });
   });
 });

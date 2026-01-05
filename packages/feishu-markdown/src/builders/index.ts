@@ -207,12 +207,14 @@ export function createTableBlock(
   rowSize: number,
   columnSize: number,
   cellBlockIds: string[],
-  blockId?: string
+  blockId?: string,
+  columnWidths?: number[]
 ): FeishuBlock {
   const tableData: TableBlockData = {
     property: {
       row_size: rowSize,
       column_size: columnSize,
+      column_width: columnWidths,
     },
   };
 

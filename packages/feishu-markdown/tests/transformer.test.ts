@@ -278,24 +278,11 @@ const greeting = "Hello";
     );
   });
 
-  it('should return root children ids', async () => {
-    const ast = parseMarkdown('# Title\n\nParagraph\n\n- List');
-    const result = await transformMarkdownToBlocks(ast);
-
-    expect(result.rootChildrenIds.length).toBeGreaterThan(0);
-    // Root children should reference actual blocks
-    for (const id of result.rootChildrenIds) {
-      const block = result.blocks.find((b) => b.block_id === id);
-      expect(block).toBeDefined();
-    }
-  });
-
   it('should handle empty markdown', async () => {
     const ast = parseMarkdown('');
     const result = await transformMarkdownToBlocks(ast);
 
     expect(result.blocks.length).toBe(0);
-    expect(result.rootChildrenIds.length).toBe(0);
   });
 
   it('should handle mermaid code block option disabled', async () => {

@@ -7,14 +7,14 @@ import { BlockType } from '@/types/feishu';
 vi.mock('@/handlers/mermaid', () => {
   return {
     renderMermaid: vi.fn(async () => ({
-      buffer: Buffer.from('png-data'),
+      path: '/tmp/mermaid_test.png',
       fileName: 'mermaid_test.png',
     })),
   };
 });
 
 describe('mermaid handling', () => {
-  it('parses mermaid code block and generates an image block with buffer', async () => {
+  it('parses mermaid code block and generates an image block with path', async () => {
     const markdown = '```mermaid\ngraph TD\n  A-->B\n```';
 
     const ast = parseMarkdown(markdown);
@@ -32,11 +32,11 @@ describe('mermaid handling', () => {
 
     const first = result.imageBuffers.values().next().value;
     expect(first).toBeDefined();
-    if (first?.source?.type === 'buffer') {
-      expect(first.source.buffer).toEqual(Buffer.from('png-data'));
-      expect(first.source.fileName).toBe('mermaid_test.png');
+    if (first?.source?.type === 'path') {
+      expect(first.source.path).toEqual('/tmp/mermaid_test.png');
+      expect(first.fileName).toBe('mermaid_test.png');
     } else {
-      throw new Error('expected buffer source');
+      throw new Error('expected path source');
     }
   });
 });
