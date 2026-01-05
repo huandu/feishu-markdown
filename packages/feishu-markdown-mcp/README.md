@@ -6,12 +6,50 @@
 
 这是一个 Model Context Protocol (MCP) 服务器，提供与飞书（Lark）文档交互的工具。它允许你将 Markdown 文件或文本上传到飞书，并更新现有文档。
 
-## 功能
+## 功能特性
 
-- **上传 Markdown 文件**：将本地 Markdown 文件上传到飞书作为新文档。
-- **上传 Markdown 文本**：将原始 Markdown 文本上传到飞书作为新文档。
-- **更新文档**：追加或替换现有飞书文档的内容。
-- **配置**：动态设置飞书 App ID 和 Secret。
+- **Mermaid 自动渲染**：识别 ` ```mermaid ` 代码块，自动生成图片并插入飞书文档（无需手动截图/上传）。
+- **本地图片自动上传**：支持 `![...](./local.png)` / `![...](../assets/a.jpg)` / 绝对路径等本地图片引用，自动上传并替换为飞书可用的图片。
+- **自动转交文档所有权**：可将新建文档的 owner 转交给指定飞书用户，让用户获得完全控制权（权限、分享、移动、删除等）。
+- **上传 Markdown 文件/文本**：将本地文件或文本转换为飞书新版文档并上传。
+- **更新现有文档**：对现有飞书文档执行 `append`（追加）或 `replace`（覆盖）。
+- **可在 MCP 客户端直接使用**：VS Code / Cursor 等支持 MCP 的客户端可通过 stdio 方式集成。
+
+## 使用示例（Prompt）
+
+### 1) 上传本地 Markdown 文件（含 Mermaid + 本地图片）
+
+```text
+请把这个 Markdown 文件上传到飞书：path/to/doc.md
+```
+
+如果 `doc.md` 里包含以下内容：
+
+````markdown
+```mermaid
+graph TD
+  A[Start] --> B{Decision}
+  B -->|Yes| C[Do]
+  B -->|No| D[End]
+```
+
+![architecture](./images/arch.png)
+````
+
+服务会自动：
+
+- 将 Mermaid 渲染成图片并上传
+- 将 `./images/arch.png` 解析为本地图片并上传（默认以 Markdown 文件所在目录作为相对路径基准）
+
+### 2) 追加内容到现有飞书文档
+
+```text
+把下面内容追加到这个飞书文档末尾：https://feishu.cn/docx/xxxxx
+
+## 更新说明
+
+- 这是新增的内容
+```
 
 ## VSCode 使用（MCP Server）
 
@@ -89,7 +127,9 @@ pnpm build
 
 - `FEISHU_APP_ID`: 你的飞书 App ID。
 - `FEISHU_APP_SECRET`: 你的飞书 App Secret。
-- `FEISHU_USER_MOBILE`: (可选) 飞书用户手机号。如果设置，每次创建文档后会自动将该用户添加为协作者并授予完全访问权限。
+- `FEISHU_USER_MOBILE`: (可选) 飞书用户手机号。
+  - 如果设置：每次创建新文档后，会自动将文档所有权转交给该用户（owner transfer）。
+  - 这能确保最终文档由用户本人完全控制（权限、分享、移动、删除等）。
 
 ### 运行服务器
 
@@ -114,6 +154,7 @@ node dist/index.js
 - `filePath` (string): Markdown 文件的绝对路径。
 - `title` (string, 可选): 文档标题。
 - `folderToken` (string, 可选): 创建文档的目标文件夹 Token。
+- `imageBaseDir` (string, 可选): 本地图片基础路径（用于解析相对路径图片）。默认使用系统临时目录，并且会在上传完成后自动删除。
 - `downloadImages` (boolean, 可选): 是否下载网络图片。
 - `mermaid` (object, 可选): Mermaid 图表配置。
 - `batchSize` (number, 可选): 批量创建块的大小。
@@ -125,6 +166,7 @@ node dist/index.js
 - `text` (string): Markdown 内容。
 - `title` (string, 可选): 文档标题。
 - `folderToken` (string, 可选): 创建文档的目标文件夹 Token。
+- `imageBaseDir` (string, 可选): 本地图片基础路径（用于解析相对路径图片）。
 - `downloadImages` (boolean, 可选): 是否下载网络图片。
 - `mermaid` (object, 可选): Mermaid 图表配置。
 - `batchSize` (number, 可选): 批量创建块的大小。
@@ -136,6 +178,7 @@ node dist/index.js
 - `url` (string): 飞书文档的 URL (例如 `https://feishu.cn/docx/xyz...`)。
 - `markdown` (string): 新的 markdown 内容。
 - `mode` (string): `append` (追加到末尾) 或 `replace` (覆盖文档)。
+- `imageBaseDir` (string, 可选): 本地图片基础路径（用于解析相对路径图片）。
 - `downloadImages` (boolean, 可选): 是否下载网络图片。
 - `mermaid` (object, 可选): Mermaid 图表配置。
 - `batchSize` (number, 可选): 批量创建块的大小。

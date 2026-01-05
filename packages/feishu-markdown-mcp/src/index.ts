@@ -46,6 +46,10 @@ const MermaidOptionsSchema = z.object({
 const ConvertOptionsSchema = z.object({
   title: z.string().optional(),
   folderToken: z.string().optional(),
+  imageBaseDir: z
+    .string()
+    .optional()
+    .describe('本地图片基础路径（用于解析相对路径图片）'),
   downloadImages: z.boolean().optional(),
   mermaid: MermaidOptionsSchema.optional(),
   batchSize: z.number().optional(),
@@ -93,9 +97,14 @@ server.registerTool(
   async ({ filePath, ...options }) => {
     const markdown = await fs.readFile(filePath, 'utf-8');
     const feishu = getFeishuMarkdown();
+
+    // 默认以 Markdown 文件所在目录作为 baseDir，从而支持图片相对路径
+    const imageBaseDir = options.imageBaseDir ?? path.dirname(filePath);
+
     return callTool(() =>
       feishu.convert(markdown, {
         ...options,
+        imageBaseDir,
         title: options.title ?? path.basename(filePath),
       })
     );
