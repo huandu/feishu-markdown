@@ -10,6 +10,7 @@ import type {
   PhrasingContent,
   Root,
   RootContent,
+  RootContentMap,
   Table,
 } from 'mdast';
 
@@ -100,7 +101,9 @@ async function visitNode(
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const handler = nodeHandlers[node.type];
+  const handler = nodeHandlers[node.type] as
+    | NodeHandler<RootContent>
+    | undefined;
   if (handler) {
     await handler(node, context, parentBlockId);
   } else {
@@ -139,16 +142,20 @@ function addBlock(
 /**
  * 节点处理器类型
  */
-type NodeHandler = (
-  node: RootContent,
+type NodeHandler<T extends RootContent> = (
+  node: T,
   context: TransformContext,
   parentBlockId: string | null
 ) => Promise<void>;
 
+type NodeHandlers = {
+  [K in keyof RootContentMap]?: NodeHandler<RootContentMap[K]>;
+};
+
 /**
  * 节点处理器映射
  */
-const nodeHandlers: Record<string, NodeHandler> = {
+const nodeHandlers: NodeHandlers = {
   paragraph: handleParagraph,
   heading: handleHeading,
   list: handleList,
@@ -165,12 +172,10 @@ const nodeHandlers: Record<string, NodeHandler> = {
  * 处理段落
  */
 async function handleParagraph(
-  node: RootContent,
+  paragraphNode: Paragraph,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const paragraphNode = node as Paragraph;
-
   // 检查段落中是否只包含一个图片
   if (
     paragraphNode.children.length === 1 &&
@@ -193,11 +198,10 @@ async function handleParagraph(
  * 处理标题
  */
 async function handleHeading(
-  node: RootContent,
+  headingNode: Heading,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const headingNode = node as Heading;
   const elements = extractTextElements(headingNode.children);
 
   // 限制标题级别在 1-9 之间
@@ -220,12 +224,10 @@ async function handleHeading(
  * 处理列表
  */
 async function handleList(
-  node: RootContent,
+  listNode: List,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const listNode = node as List;
-
   for (const item of listNode.children) {
     await handleListItem(
       item,
@@ -240,13 +242,11 @@ async function handleList(
  * 处理列表项
  */
 async function handleListItem(
-  node: RootContent,
+  itemNode: ListItem,
   context: TransformContext,
   parentBlockId: string | null,
   ordered = false
 ): Promise<void> {
-  const itemNode = node as ListItem;
-
   // 检查是否是任务列表项
   if (itemNode.checked !== null && itemNode.checked !== undefined) {
     await handleTaskListItem(itemNode, context, parentBlockId);
@@ -314,11 +314,10 @@ async function handleTaskListItem(
  * 处理代码块
  */
 async function handleCode(
-  node: RootContent,
+  codeNode: Code,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const codeNode = node as Code;
   const lang = codeNode.lang;
 
   // 检查是否是 Mermaid 代码块
@@ -375,12 +374,10 @@ async function handleMermaidCode(
  * 处理引用块
  */
 async function handleBlockquote(
-  node: RootContent,
+  quoteNode: Blockquote,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const quoteNode = node as Blockquote;
-
   // 创建引用容器
   const containerBlock = createQuoteContainerBlock();
   addBlock(containerBlock, context, parentBlockId);
@@ -407,26 +404,25 @@ async function handleThematicBreak(
  * 处理表格
  */
 async function handleTable(
-  node: RootContent,
+  tableNode: Table,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const tableNode = node as Table;
-  const allRows = tableNode.children;
+  const rows = tableNode.children;
 
-  if (allRows.length === 0) {
+  if (rows.length === 0) {
     return;
   }
 
-  const columnSize = allRows[0]?.children.length ?? 0;
+  const columnSize = rows[0]?.children.length ?? 0;
 
   if (columnSize === 0) {
     return;
   }
 
-  // Calculate column widths
-  const colMaxLengths = new Array(columnSize).fill(0) as number[];
-  for (const row of allRows) {
+  // 计算每列的最大内容长度
+  const colMaxLengths = new Array<number>(columnSize).fill(0);
+  for (const row of rows) {
     row.children.forEach((cell, colIndex) => {
       if (colIndex < columnSize) {
         const elements = extractTextElements(cell.children);
@@ -434,7 +430,7 @@ async function handleTable(
           (acc, el) => acc + (el.text_run?.content.length ?? 0),
           0
         );
-        colMaxLengths[colIndex] = Math.max(len, 0);
+        colMaxLengths[colIndex] = Math.max(len, colMaxLengths[colIndex] ?? 0);
       }
     });
   }
@@ -464,72 +460,59 @@ async function handleTable(
     }
   }
 
-  // Split table into chunks to avoid exceeding API limits
-  // Feishu API has a limit on the number of blocks in a single request.
-  // A table with many cells can easily exceed this limit because each cell is a block,
-  // and the table + all cells must be created in the same batch.
-  // We use a conservative limit of 20 cells per table chunk.
-  const MAX_CELLS_PER_TABLE = 20;
-  const maxRows = Math.floor(MAX_CELLS_PER_TABLE / columnSize);
-  const chunkSize = Math.max(maxRows, 1);
+  // 为每个单元格创建块
+  const cellBlockIds: string[] = [];
+  const cellBlocks: DescendantBlock[] = [];
+  const cellContentBlocks: DescendantBlock[] = [];
 
-  for (let i = 0; i < allRows.length; i += chunkSize) {
-    const rows = allRows.slice(i, i + chunkSize);
-    const rowSize = rows.length;
+  for (const row of rows) {
+    const tableRow = row;
+    for (const cell of tableRow.children) {
+      const tableCell = cell;
+      const cellBlockId = generateBlockId();
+      cellBlockIds.push(cellBlockId);
 
-    // 为每个单元格创建块
-    const cellBlockIds: string[] = [];
-    const cellBlocks: DescendantBlock[] = [];
-    const cellContentBlocks: DescendantBlock[] = [];
+      // 创建单元格块
+      const cellBlock = createTableCellBlock(cellBlockId);
 
-    for (const row of rows) {
-      const tableRow = row;
-      for (const cell of tableRow.children) {
-        const tableCell = cell;
-        const cellBlockId = generateBlockId();
-        cellBlockIds.push(cellBlockId);
+      // 提取单元格内容
+      const elements = extractTextElements(tableCell.children);
+      const contentBlockId = generateBlockId();
+      const contentBlock: DescendantBlock = {
+        ...createTextBlock(elements, contentBlockId),
+        block_id: contentBlockId,
+        children: [],
+      };
 
-        // 创建单元格块
-        const cellBlock = createTableCellBlock(cellBlockId);
-
-        // 提取单元格内容
-        const elements = extractTextElements(tableCell.children);
-        const contentBlockId = generateBlockId();
-        const contentBlock: DescendantBlock = {
-          ...createTextBlock(elements, contentBlockId),
-          block_id: contentBlockId,
-          children: [],
-        };
-
-        // 设置单元格的子块
-        (cellBlock as DescendantBlock).block_id = cellBlockId;
-        (cellBlock as DescendantBlock).children = [contentBlockId];
-
-        cellBlocks.push(cellBlock as DescendantBlock);
-        cellContentBlocks.push(contentBlock);
-      }
+      cellBlocks.push({
+        ...cellBlock,
+        block_id: cellBlockId,
+        children: [contentBlockId],
+      });
+      cellContentBlocks.push(contentBlock);
     }
+  }
 
-    // 创建表格块
-    const tableBlockId = generateBlockId();
-    const tableBlock = createTableBlock(
-      rowSize,
-      columnSize,
-      cellBlockIds,
-      tableBlockId,
-      columnWidths
-    );
+  // 创建表格块
+  const tableBlockId = generateBlockId();
+  const tableBlock = createTableBlock(
+    rows.length,
+    columnSize,
+    cellBlockIds,
+    tableBlockId,
+    columnWidths
+  );
 
-    // 添加表格块
-    addBlock(tableBlock, context, parentBlockId);
+  // 添加表格块
+  addBlock(tableBlock, context, parentBlockId);
 
-    // 添加单元格块和内容块
-    for (const cellBlock of cellBlocks) {
-      context.blocks.push(cellBlock);
-    }
-    for (const contentBlock of cellContentBlocks) {
-      context.blocks.push(contentBlock);
-    }
+  // 添加单元格块和内容块
+  for (const cellBlock of cellBlocks) {
+    context.blocks.push(cellBlock);
+  }
+
+  for (const contentBlock of cellContentBlocks) {
+    context.blocks.push(contentBlock);
   }
 }
 
@@ -537,11 +520,10 @@ async function handleTable(
  * 处理图片
  */
 async function handleImage(
-  node: RootContent,
+  imageNode: Image,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const imageNode = node as Image;
   const blockId = generateBlockId();
   const block = createImageBlock(undefined, undefined, undefined, blockId);
   addBlock(block, context, parentBlockId);
@@ -563,11 +545,10 @@ async function handleImage(
  * 处理 HTML 块
  */
 async function handleHtml(
-  node: RootContent,
+  htmlNode: Html,
   context: TransformContext,
   parentBlockId: string | null
 ): Promise<void> {
-  const htmlNode = node as Html;
   // 将 HTML 作为纯文本处理
   const elements = [createTextElement(htmlNode.value)];
   const block = createTextBlock(elements);
