@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.huandu/feishu-markdown-mcp",
+  "description": "MCP server for Feishu Markdown",
+  "repository": {
+    "url": "https://github.com/huandu/feishu-markdown",
+    "source": "github"
+  },
+  "version": "0.0.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "feishu-markdown-mcp",
+      "version": "0.0.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

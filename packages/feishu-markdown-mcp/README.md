@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/feishu-markdown-mcp.svg)](https://www.npmjs.com/package/feishu-markdown-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/feishu-markdown-mcp.svg)](https://www.npmjs.com/package/feishu-markdown-mcp)
-[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml)
+[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish-npm.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish-npm.yml)
 
 这是一个 Model Context Protocol (MCP) 服务器，提供与飞书（Lark）文档交互的工具。它允许你将 Markdown 文件或文本上传到飞书，并更新现有文档。
 
@@ -14,6 +14,8 @@
 - **上传 Markdown 文件/文本**：将本地文件或文本转换为飞书新版文档并上传。
 - **更新现有文档**：对现有飞书文档执行 `append`（追加）或 `replace`（覆盖）。
 - **可在 MCP 客户端直接使用**：VS Code / Cursor 等支持 MCP 的客户端可通过 stdio 方式集成。
+- **超长 Markdown 支持**：可将超长或大型 Markdown 文档上传到飞书云文档，支持分块上传以处理大文件。
+- **保留原始样式**：在转换过程中尽可能保留 Markdown 的原始样式，包括代码块、表格、列表与复杂嵌套结构，最大程度还原原文格式。
 
 ## 使用示例（Prompt）
 
