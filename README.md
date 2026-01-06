@@ -1,6 +1,6 @@
 # Feishu Markdown
 
-[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish-npm.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish-npm.yml)
+[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml)
 [![license](https://img.shields.io/github/license/huandu/feishu-markdown.svg)](https://github.com/huandu/feishu-markdown/blob/main/LICENSE)
 
 本项目是一个单仓库（monorepo），用于将 Markdown 转换为飞书 / Lark 文档格式，并提供一个 MCP 服务以便与 Model Context Protocol 集成。

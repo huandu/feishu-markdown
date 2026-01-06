@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/feishu-markdown.svg)](https://www.npmjs.com/package/feishu-markdown)
 [![npm downloads](https://img.shields.io/npm/dm/feishu-markdown.svg)](https://www.npmjs.com/package/feishu-markdown)
-[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish-npm.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish-npm.yml)
+[![Build](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml/badge.svg)](https://github.com/huandu/feishu-markdown/actions/workflows/publish.yml)
 
 Markdown 转飞书云文档工具库，支持将 Markdown 文档转换并上传到飞书云文档。
 
